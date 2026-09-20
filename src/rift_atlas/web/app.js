@@ -95,7 +95,7 @@ function renderGraph(data) {
   edgeLayer.replaceChildren();
   nodeLayer.replaceChildren();
   title.textContent = `${data.focal.champion} relationships`;
-  graph.hidden = false;
+  graph.removeAttribute("hidden");
   emptyState.hidden = true;
   graph.classList.remove("graph-enter");
   void graph.getBoundingClientRect();
