@@ -24,12 +24,58 @@ class TeamObservation:
     league: str
 
 
+@dataclass(frozen=True)
+class RelationshipEvidence:
+    """One reusable evidence model for every relationship view."""
+
+    champion: str
+    baseline_support: int
+    co_pick_support: int
+    focal_support: int
+    lift: float
+    confidence_adjusted_lift: float
+    supporting_patches: tuple[str, ...]
+    supporting_leagues: tuple[str, ...]
+
+    def as_dict(self) -> dict[str, object]:
+        return {
+            "champion": self.champion,
+            "baseline_support": self.baseline_support,
+            "relationship": "co_pick",
+            "co_pick_support": self.co_pick_support,
+            "focal_support": self.focal_support,
+            "neighbor_support": self.baseline_support,
+            "lift": self.lift,
+            "confidence_adjusted_lift": self.confidence_adjusted_lift,
+            "supporting_patches": list(self.supporting_patches),
+            "supporting_leagues": list(self.supporting_leagues),
+        }
+
+
 class RelationshipIndex:
     """Immutable aggregate for neutral, evidence-first graph exploration."""
 
     ASSOCIATION_PRIOR = 2
     MIN_NODE_RADIUS = 24.0
     MAX_NODE_RADIUS = 58.0
+    DEFAULT_MODE = "established"
+    MODE_DESCRIPTIONS = {
+        "established": {
+            "label": "Established",
+            "description": "Balances normalized association with the amount of supporting evidence.",
+            "ordering": "confidence-adjusted lift descending, then co-pick support descending, then champion name",
+        },
+        "frequent": {
+            "label": "Frequent",
+            "description": "Shows the relationships observed together most often.",
+            "ordering": "co-pick support descending, then confidence-adjusted lift descending, then champion name",
+        },
+        "surprising": {
+            "label": "Surprising",
+            "description": "Surfaces unusually strong normalized association, including rare pairs.",
+            "ordering": "lift descending, then co-pick support descending, then champion name",
+        },
+    }
 
     def __init__(
         self,
@@ -94,15 +140,27 @@ class RelationshipIndex:
             )
         return champions[:limit]
 
-    def graph(self, champion: str, *, limit: int = 12) -> dict[str, object]:
+    def graph(
+        self,
+        champion: str,
+        *,
+        limit: int = 12,
+        mode: str = DEFAULT_MODE,
+        minimum_support: int = 1,
+    ) -> dict[str, object]:
         if limit < 0:
             raise ValueError("limit must be non-negative.")
+        if mode not in self.MODE_DESCRIPTIONS:
+            choices = ", ".join(self.MODE_DESCRIPTIONS)
+            raise ValueError(f"mode must be one of: {choices}")
+        if minimum_support < 1:
+            raise ValueError("minimum_support must be at least 1.")
         canonical = self._canonical.get(champion.strip().casefold())
         if canonical is None:
             raise ValueError(f"Unknown champion: {champion}")
 
         focal_ids = self._observation_ids[canonical]
-        neighbors: list[dict[str, object]] = []
+        evidence: list[RelationshipEvidence] = []
         for neighbor in self._support:
             if neighbor == canonical:
                 continue
@@ -117,38 +175,32 @@ class RelationshipIndex:
             )
             adjusted = lift * support / (support + self.ASSOCIATION_PRIOR)
             contexts = [self._observations[index] for index in matching]
-            neighbors.append(
-                {
-                    "champion": neighbor,
-                    "baseline_support": neighbor_support,
-                    "relationship": "co_pick",
-                    "co_pick_support": support,
-                    "focal_support": focal_support,
-                    "neighbor_support": neighbor_support,
-                    "lift": lift,
-                    "confidence_adjusted_lift": adjusted,
-                    "supporting_patches": sorted({item.patch for item in contexts}),
-                    "supporting_leagues": sorted({item.league for item in contexts}),
-                }
+            evidence.append(
+                RelationshipEvidence(
+                    champion=neighbor,
+                    baseline_support=neighbor_support,
+                    co_pick_support=support,
+                    focal_support=focal_support,
+                    lift=lift,
+                    confidence_adjusted_lift=adjusted,
+                    supporting_patches=tuple(sorted({item.patch for item in contexts})),
+                    supporting_leagues=tuple(sorted({item.league for item in contexts})),
+                )
             )
 
-        neighbors.sort(
-            key=lambda item: (
-                -float(item["confidence_adjusted_lift"]),
-                -int(item["co_pick_support"]),
-                str(item["champion"]).casefold(),
-                str(item["champion"]),
-            )
-        )
-        visible = neighbors[:limit]
+        eligible = [item for item in evidence if item.co_pick_support >= minimum_support]
+        eligible.sort(key=lambda item: self._ranking_key(item, mode))
+        visible = [item.as_dict() for item in eligible[:limit]]
         visible_supports = [self._support[canonical]] + [
             int(item["baseline_support"]) for item in visible
         ]
-        minimum_support = min(visible_supports)
-        maximum_support = max(visible_supports)
+        minimum_visible_support = min(visible_supports)
+        maximum_visible_support = max(visible_supports)
         for item in visible:
             item["visual_radius"] = self._node_radius(
-                int(item["baseline_support"]), minimum_support, maximum_support
+                int(item["baseline_support"]),
+                minimum_visible_support,
+                maximum_visible_support,
             )
         return {
             "relationship_types": ["co_pick"],
@@ -156,12 +208,22 @@ class RelationshipIndex:
                 "champion": canonical,
                 "baseline_support": self._support[canonical],
                 "visual_radius": self._node_radius(
-                    self._support[canonical], minimum_support, maximum_support
+                    self._support[canonical],
+                    minimum_visible_support,
+                    maximum_visible_support,
                 ),
             },
             "neighbors": visible,
-            "neighbor_count": len(neighbors),
+            "neighbor_count": len(eligible),
+            "relationship_count": len(evidence),
             "visible_neighbor_limit": limit,
+            "minimum_support": minimum_support,
+            "mode": mode,
+            "mode_definition": dict(self.MODE_DESCRIPTIONS[mode]),
+            "available_modes": {
+                name: dict(description)
+                for name, description in self.MODE_DESCRIPTIONS.items()
+            },
             "dataset": self.dataset_context,
             "encoding": {
                 "edge_width": "confidence_adjusted_lift",
@@ -175,6 +237,26 @@ class RelationshipIndex:
                 "association_prior": self.ASSOCIATION_PRIOR,
             },
         }
+
+    @staticmethod
+    def _ranking_key(
+        evidence: RelationshipEvidence, mode: str
+    ) -> tuple[float | int | str, ...]:
+        name = evidence.champion
+        alphabetical = (name.casefold(), name)
+        if mode == "frequent":
+            return (
+                -evidence.co_pick_support,
+                -evidence.confidence_adjusted_lift,
+                *alphabetical,
+            )
+        if mode == "surprising":
+            return (-evidence.lift, -evidence.co_pick_support, *alphabetical)
+        return (
+            -evidence.confidence_adjusted_lift,
+            -evidence.co_pick_support,
+            *alphabetical,
+        )
 
     @classmethod
     def _node_radius(cls, support: int, minimum: int, maximum: int) -> float:
@@ -211,7 +293,18 @@ def make_handler(index: RelationshipIndex) -> type[BaseHTTPRequestHandler]:
                         self._json({"error": "champion is required"}, HTTPStatus.BAD_REQUEST)
                         return
                     limit = _integer_parameter(query, "limit", 12, maximum=50)
-                    self._json(index.graph(champion, limit=limit))
+                    minimum_support = _integer_parameter(
+                        query, "minimum_support", 1, minimum=1, maximum=100_000
+                    )
+                    mode = query.get("mode", [RelationshipIndex.DEFAULT_MODE])[0]
+                    self._json(
+                        index.graph(
+                            champion,
+                            limit=limit,
+                            mode=mode,
+                            minimum_support=minimum_support,
+                        )
+                    )
                     return
                 assets = {
                     "/": ("index.html", "text/html; charset=utf-8"),
@@ -246,15 +339,20 @@ def make_handler(index: RelationshipIndex) -> type[BaseHTTPRequestHandler]:
 
 
 def _integer_parameter(
-    query: dict[str, list[str]], name: str, default: int, *, maximum: int
+    query: dict[str, list[str]],
+    name: str,
+    default: int,
+    *,
+    maximum: int,
+    minimum: int = 0,
 ) -> int:
     raw = query.get(name, [str(default)])[0]
     try:
         value = int(raw)
     except ValueError as error:
         raise ValueError(f"{name} must be an integer") from error
-    if not 0 <= value <= maximum:
-        raise ValueError(f"{name} must be between 0 and {maximum}")
+    if not minimum <= value <= maximum:
+        raise ValueError(f"{name} must be between {minimum} and {maximum}")
     return value
 
 

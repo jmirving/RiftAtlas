@@ -65,6 +65,45 @@ class RelationshipIndexTests(unittest.TestCase):
         self.assertEqual(2, len(first["neighbors"]))
         self.assertGreater(first["neighbor_count"], 2)
 
+    def test_relationship_modes_have_documented_deterministic_ordering(self) -> None:
+        index = RelationshipIndex(
+            [
+                record(1, ("A", "Frequent", "Surprising", "X1", "X2")),
+                record(2, ("A", "Frequent", "X3", "X4", "X5")),
+                record(3, ("A", "Frequent", "X6", "X7", "X8")),
+                record(4, ("Frequent", "P1", "P2", "P3", "P4")),
+                record(5, ("Frequent", "P5", "P6", "P7", "P8")),
+            ],
+            input_identifier="fixtures/modes.csv",
+        )
+
+        established = index.graph("A")
+        frequent = index.graph("A", mode="frequent")
+        surprising = index.graph("A", mode="surprising")
+
+        self.assertEqual("Frequent", established["neighbors"][0]["champion"])
+        self.assertEqual("Frequent", frequent["neighbors"][0]["champion"])
+        self.assertEqual("Surprising", surprising["neighbors"][0]["champion"])
+        self.assertEqual("established", index.graph("A")["mode"])
+        self.assertIn("ordering", surprising["mode_definition"])
+        self.assertEqual(frequent, index.graph("A", mode="frequent"))
+
+    def test_minimum_support_filters_without_changing_evidence_model(self) -> None:
+        graph = sample_index().graph("A", minimum_support=2)
+
+        self.assertEqual(["B", "C"], [item["champion"] for item in graph["neighbors"]])
+        self.assertEqual(2, graph["neighbor_count"])
+        self.assertGreater(graph["relationship_count"], graph["neighbor_count"])
+        self.assertEqual(2, graph["minimum_support"])
+
+    def test_invalid_mode_and_minimum_support_are_rejected(self) -> None:
+        index = sample_index()
+
+        with self.assertRaisesRegex(ValueError, "mode must be one of"):
+            index.graph("A", mode="quality")
+        with self.assertRaisesRegex(ValueError, "at least 1"):
+            index.graph("A", minimum_support=0)
+
     def test_co_pick_edge_evidence_matches_observations(self) -> None:
         graph = sample_index().graph("A")
         edge = next(item for item in graph["neighbors"] if item["champion"] == "B")
@@ -149,15 +188,34 @@ class ExplorerServerTests(unittest.TestCase):
         self.assertIn("Thicker edge = stronger confidence-adjusted association", page)
         self.assertIn("Darker edge = more observed co-picks", page)
         self.assertIn("Larger node = champion appeared in more team drafts", page)
+        self.assertIn("Relationship view", page)
+        self.assertIn("Clockwise from top", page)
+        self.assertIn("Minimum co-picks", page)
         self.assertIn("renderGraph", script)
         self.assertIn("played: ${node.baseline_support}", script)
         self.assertIn("edgeOpacity(edge.co_pick_support)", script)
+        self.assertIn("minimum_support", script)
+        self.assertIn("relationshipMode", script)
         self.assertIn("co-pick${edge.co_pick_support === 1", script)
         self.assertIn('r: node.visual_radius', script)
         self.assertIn("paint-order: stroke fill", styles)
         self.assertIn(".workspace", styles)
         self.assertEqual("A", payload["focal"]["champion"])
         self.assertEqual(1, len(payload["neighbors"]))
+
+    def test_graph_endpoint_accepts_mode_and_sample_control(self) -> None:
+        with urlopen(
+            self.base_url
+            + "/api/graph?champion=A&mode=frequent&minimum_support=2",
+            timeout=2,
+        ) as response:
+            payload = json.load(response)
+
+        self.assertEqual("frequent", payload["mode"])
+        self.assertEqual(2, payload["minimum_support"])
+        self.assertTrue(
+            all(item["co_pick_support"] >= 2 for item in payload["neighbors"])
+        )
 
     def test_unknown_champion_returns_bad_request(self) -> None:
         with self.assertRaises(HTTPError) as caught:

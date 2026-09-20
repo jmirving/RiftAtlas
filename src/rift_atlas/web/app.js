@@ -5,6 +5,11 @@ const searchOptions = document.querySelector("#champion-options");
 const searchStatus = document.querySelector("#search-status");
 const limitInput = document.querySelector("#neighbor-limit");
 const limitOutput = document.querySelector("#limit-output");
+const modeButtons = [...document.querySelectorAll(".mode-button")];
+const modeDescription = document.querySelector("#mode-description");
+const orderLegend = document.querySelector("#order-legend");
+const minimumSupportInput = document.querySelector("#minimum-support");
+const supportOutput = document.querySelector("#support-output");
 const graph = document.querySelector("#graph");
 const emptyState = document.querySelector("#empty-state");
 const edgeLayer = document.querySelector("#edges");
@@ -14,6 +19,7 @@ const evidencePanel = document.querySelector("#evidence-panel");
 const datasetPanel = document.querySelector("#dataset-context");
 
 let focusChampion = "";
+let relationshipMode = "established";
 let searchTimer;
 
 function element(name, attributes = {}) {
@@ -95,18 +101,31 @@ function renderGraph(data) {
   edgeLayer.replaceChildren();
   nodeLayer.replaceChildren();
   title.textContent = `${data.focal.champion} relationships`;
+  const modeLabel = data.mode_definition.label;
+  const shownCount = data.neighbors.length;
+  modeDescription.textContent = `${data.mode_definition.description} Showing ${shownCount} of ${data.relationship_count} relationships at ${data.minimum_support}+ co-picks.`;
+  orderLegend.textContent = `Clockwise from top: strongest in ${modeLabel} → weaker`;
+  modeButtons.forEach((button) => {
+    const active = button.dataset.mode === data.mode;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-pressed", String(active));
+  });
   graph.removeAttribute("hidden");
   emptyState.hidden = true;
   graph.classList.remove("graph-enter");
   void graph.getBoundingClientRect();
   graph.classList.add("graph-enter");
 
-  const center = { x: 500, y: 350 };
+  const center = { x: 500, y: 390 };
   const count = data.neighbors.length;
+  graph.setAttribute(
+    "aria-label",
+    `${data.focal.champion} co-pick relationships in ${modeLabel} view, ranked clockwise from the top`,
+  );
   const positions = data.neighbors.map((_, index) => {
     const angle = -Math.PI / 2 + (index * Math.PI * 2) / Math.max(count, 1);
     const horizontal = count < 8 ? 300 : 350;
-    const vertical = count < 8 ? 225 : 255;
+    const vertical = count < 8 ? 170 : 190;
     return { x: center.x + Math.cos(angle) * horizontal, y: center.y + Math.sin(angle) * vertical };
   });
   const lifts = data.neighbors.map((item) => item.confidence_adjusted_lift);
@@ -183,7 +202,13 @@ function renderGraph(data) {
 async function loadGraph(champion) {
   searchStatus.textContent = "";
   try {
-    const data = await fetchJson(`/api/graph?champion=${encodeURIComponent(champion)}&limit=${limitInput.value}`);
+    const query = new URLSearchParams({
+      champion,
+      limit: limitInput.value,
+      mode: relationshipMode,
+      minimum_support: minimumSupportInput.value,
+    });
+    const data = await fetchJson(`/api/graph?${query}`);
     focusChampion = data.focal.champion;
     searchInput.value = focusChampion;
     renderGraph(data);
@@ -202,4 +227,17 @@ searchForm.addEventListener("submit", (event) => {
 });
 limitInput.addEventListener("input", () => { limitOutput.value = limitInput.value; });
 limitInput.addEventListener("change", () => { if (focusChampion) loadGraph(focusChampion); });
+minimumSupportInput.addEventListener("input", () => { supportOutput.value = minimumSupportInput.value; });
+minimumSupportInput.addEventListener("change", () => { if (focusChampion) loadGraph(focusChampion); });
+modeButtons.forEach((button) => {
+  button.addEventListener("click", () => {
+    relationshipMode = button.dataset.mode;
+    modeButtons.forEach((item) => {
+      const active = item === button;
+      item.classList.toggle("active", active);
+      item.setAttribute("aria-pressed", String(active));
+    });
+    if (focusChampion) loadGraph(focusChampion);
+  });
+});
 updateSearchOptions();

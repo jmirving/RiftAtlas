@@ -84,6 +84,16 @@ dominate the graph. The visible legend documents these encodings, and the UI
 describes co-picks as observations rather than recommendations or claims of
 synergy.
 
+The explorer offers three deterministic relationship views over the same edge
+evidence. Confidence-adjusted lift is `lift × support / (support + 2)`.
+**Established** (the default) orders by confidence-adjusted lift, then co-pick
+support, then champion name. **Frequent** orders by co-pick support, then
+confidence-adjusted lift, then champion name. **Surprising** orders by raw lift,
+then co-pick support, then champion name. The highest-ranked visible
+relationship is placed at 12 o'clock and rank continues clockwise. A minimum
+co-pick control filters low-sample relationships at query time; it does not
+change or permanently discard the underlying evidence.
+
 The JSON result reports candidate and locked-champion sample counts, pairwise
 co-pick support, popularity-normalized lift, confidence-adjusted lift, coverage,
 exact and subset joint support, supporting patches/leagues, and every ranking

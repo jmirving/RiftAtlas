@@ -36,10 +36,26 @@
             <h1 id="graph-title">Choose a champion to begin</h1>
           </div>
           <div class="legend" aria-label="Graph encoding legend">
+            <span id="order-legend" class="order-legend">Clockwise from top: strongest in Established → weaker</span>
             <span><i class="edge-key edge-width-key"></i> Thicker edge = stronger confidence-adjusted association</span>
             <span><i class="edge-key edge-opacity-key"></i> Darker edge = more observed co-picks</span>
             <span><i class="node-key"></i> Larger node = champion appeared in more team drafts</span>
           </div>
+        </div>
+        <div class="view-controls" aria-label="Relationship view controls">
+          <fieldset class="mode-control">
+            <legend>Relationship view</legend>
+            <div class="mode-options">
+              <button type="button" class="mode-button active" data-mode="established" aria-pressed="true">Established</button>
+              <button type="button" class="mode-button" data-mode="frequent" aria-pressed="false">Frequent</button>
+              <button type="button" class="mode-button" data-mode="surprising" aria-pressed="false">Surprising</button>
+            </div>
+          </fieldset>
+          <div class="support-control">
+            <label for="minimum-support">Minimum co-picks <output id="support-output">1</output></label>
+            <input id="minimum-support" type="range" min="1" max="10" value="1" step="1">
+          </div>
+          <p id="mode-description" class="mode-description">Balances normalized association with the amount of supporting evidence.</p>
         </div>
         <div id="empty-state" class="empty-state">
           <span class="empty-orbit" aria-hidden="true"></span>
@@ -69,7 +85,7 @@
         </div>
         <div class="inspector-section note">
           <p><strong>Reading the graph</strong></p>
-          <p>Connections describe observed co-selection on the same team. They do not claim synergy, quality, or a recommended pick.</p>
+          <p>Connections describe observed co-selection on the same team. Views change how observations are ranked; they do not claim synergy, quality, or a recommended pick.</p>
         </div>
       </aside>
     </main>

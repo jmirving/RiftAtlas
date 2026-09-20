@@ -115,9 +115,9 @@ partial composition logically narrows them.
 - an in-memory inverted observation index for repeatable recommendation queries
 - deterministic machine-readable `rift-atlas recommend` JSON output
 - a reusable, neutral co-pick relationship query index
-- a dependency-free local relationship explorer with champion search,
-  deterministic neighbor limits, graph navigation, edge evidence, and dataset
-  context
+- a dependency-free local relationship explorer with champion search, three
+  deterministic relationship views, a minimum-support filter, clockwise rank
+  semantics, graph navigation, edge evidence, and dataset context
 - GitHub Actions CI for the unit suite
 
 There is no database, graph database, model, embedding system, or production
