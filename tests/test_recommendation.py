@@ -59,11 +59,18 @@ class RecommendationTests(unittest.TestCase):
         evidence = candidate(result, "C")
 
         self.assertEqual(2, evidence["candidate_support"])
-        self.assertEqual(2, evidence["pairwise_evidence"][0]["co_pick_support"])
-        self.assertEqual(["1.1", "1.2"], evidence["supporting_patches"])
-        self.assertEqual(["L1", "L2"], evidence["supporting_leagues"])
-        self.assertEqual(2, evidence["ranking_components"]["supporting_patch_count"])
-        self.assertEqual(2, evidence["ranking_components"]["supporting_league_count"])
+        pair = evidence["pairwise_evidence"][0]
+        self.assertEqual(2, pair["co_pick_support"])
+        self.assertEqual(["1.1", "1.2"], pair["supporting_patches"])
+        self.assertEqual(["L1", "L2"], pair["supporting_leagues"])
+        self.assertEqual(["1.1", "1.2"], evidence["any_pair_supporting_patches"])
+        self.assertEqual(["L1", "L2"], evidence["any_pair_supporting_leagues"])
+        self.assertEqual(
+            2, evidence["ranking_components"]["any_pair_supporting_patch_count"]
+        )
+        self.assertEqual(
+            2, evidence["ranking_components"]["any_pair_supporting_league_count"]
+        )
         self.assertEqual("not_evaluated", evidence["role_feasibility"]["status"])
 
     def test_two_locked_champions_use_both_and_report_exact_trio(self) -> None:
@@ -116,6 +123,50 @@ class RecommendationTests(unittest.TestCase):
             [item["champion"] for item in result["candidates"]].index("Rare"),
             [item["champion"] for item in result["candidates"]].index("Popular"),
         )
+
+    def test_persistence_distinguishes_pair_union_and_exact_joint_context(self) -> None:
+        index = RecommendationIndex(
+            [
+                record(
+                    1,
+                    ("A", "C", "X1", "X2", "X3"),
+                    patch="1.2",
+                    league="L2",
+                ),
+                record(
+                    2,
+                    ("B", "C", "Y1", "Y2", "Y3"),
+                    patch="1.1",
+                    league="L1",
+                ),
+                record(
+                    3,
+                    ("A", "B", "C", "Z1", "Z2"),
+                    patch="1.3",
+                    league="L3",
+                ),
+            ]
+        )
+
+        evidence = candidate(index.recommend(["A", "B"]), "C")
+        pairs = {
+            pair["locked_champion"]: pair for pair in evidence["pairwise_evidence"]
+        }
+
+        self.assertEqual(["1.2", "1.3"], pairs["A"]["supporting_patches"])
+        self.assertEqual(["L2", "L3"], pairs["A"]["supporting_leagues"])
+        self.assertEqual(["1.1", "1.3"], pairs["B"]["supporting_patches"])
+        self.assertEqual(["L1", "L3"], pairs["B"]["supporting_leagues"])
+        self.assertEqual(
+            ["1.1", "1.2", "1.3"], evidence["any_pair_supporting_patches"]
+        )
+        self.assertEqual(
+            ["L1", "L2", "L3"], evidence["any_pair_supporting_leagues"]
+        )
+        self.assertEqual(["1.3"], evidence["exact_joint_patches"])
+        self.assertEqual(["L3"], evidence["exact_joint_leagues"])
+        self.assertNotIn("supporting_patches", evidence)
+        self.assertNotIn("supporting_leagues", evidence)
 
     def test_input_errors_and_deterministic_tie_break(self) -> None:
         index = RecommendationIndex([record(1, ("A", "Beta", "Alpha", "X", "Y"))])
@@ -202,7 +253,7 @@ class RecommendationTests(unittest.TestCase):
 
             payload = json.loads(output.getvalue())
             self.assertEqual(0, exit_code)
-            self.assertEqual("1", payload["schema_version"])
+            self.assertEqual("2", payload["schema_version"])
             self.assertEqual(["A"], payload["locked_champions"])
             self.assertEqual(1, len(payload["candidates"]))
 

@@ -185,8 +185,8 @@ class RecommendationIndex:
                     "exact_joint_support descending",
                     "mean confidence-adjusted lift descending",
                     "minimum pair support descending",
-                    "supporting patch count descending",
-                    "supporting league count descending",
+                    "any-pair supporting patch count descending",
+                    "any-pair supporting league count descending",
                     "candidate support descending",
                     "champion name ascending",
                 ],
@@ -214,6 +214,7 @@ class RecommendationIndex:
             matching = self._matching_observations((champion, candidate))
             support = len(matching)
             context_observations.update(matching)
+            pair_contexts = [self._observations[index] for index in matching]
             locked_support = self._support[champion]
             lift = (
                 support * self.team_observation_count / (locked_support * candidate_support)
@@ -231,6 +232,12 @@ class RecommendationIndex:
                     "candidate_support": candidate_support,
                     "lift": lift,
                     "confidence_adjusted_lift": adjusted,
+                    "supporting_patches": sorted(
+                        {item.patch for item in pair_contexts}
+                    ),
+                    "supporting_leagues": sorted(
+                        {item.league for item in pair_contexts}
+                    ),
                 }
             )
 
@@ -259,16 +266,20 @@ class RecommendationIndex:
             "coverage_ratio": coverage_count / len(locked),
             "exact_joint_support": len(exact_indexes),
             "subset_support": subset_support,
-            "supporting_patches": sorted({item.patch for item in contexts}),
-            "supporting_leagues": sorted({item.league for item in contexts}),
+            "any_pair_supporting_patches": sorted({item.patch for item in contexts}),
+            "any_pair_supporting_leagues": sorted({item.league for item in contexts}),
             "exact_joint_patches": sorted({item.patch for item in exact_contexts}),
             "exact_joint_leagues": sorted({item.league for item in exact_contexts}),
             "ranking_components": {
                 "minimum_pair_support": min(pair_counts),
                 "minimum_confidence_adjusted_lift": min(adjusted_values),
                 "mean_confidence_adjusted_lift": sum(adjusted_values) / len(adjusted_values),
-                "supporting_patch_count": len({item.patch for item in contexts}),
-                "supporting_league_count": len({item.league for item in contexts}),
+                "any_pair_supporting_patch_count": len(
+                    {item.patch for item in contexts}
+                ),
+                "any_pair_supporting_league_count": len(
+                    {item.league for item in contexts}
+                ),
             },
             "role_feasibility": role.as_dict(),
         }
@@ -289,8 +300,8 @@ class RecommendationIndex:
             -int(evidence["exact_joint_support"]),
             -float(components["mean_confidence_adjusted_lift"]),
             -int(components["minimum_pair_support"]),
-            -int(components["supporting_patch_count"]),
-            -int(components["supporting_league_count"]),
+            -int(components["any_pair_supporting_patch_count"]),
+            -int(components["any_pair_supporting_league_count"]),
             -int(evidence["candidate_support"]),
             str(evidence["champion"]).casefold(),
             str(evidence["champion"]),

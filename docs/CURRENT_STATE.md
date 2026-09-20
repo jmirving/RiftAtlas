@@ -78,7 +78,8 @@ The ranking/evidence model remains explainable and returns:
 - coverage across the locked set, so one strong pair does not hide weak or
   absent relationships elsewhere
 - sample confidence
-- persistence across patches and leagues
+- persistence across patches and leagues, separated into per-pair, any-pair
+  union, and exact-joint contexts
 - role feasibility
 
 Exact-composition support will become sparse as the partial team grows. The
@@ -88,6 +89,15 @@ joint support is zero.
 
 The output should expose component evidence rather than immediately compressing
 everything into an opaque universal "RiftAtlas score."
+
+Recommendation schema version 2 makes persistence semantics explicit. Each
+`pairwise_evidence` entry has its own `supporting_patches` and
+`supporting_leagues`. Candidate-level `any_pair_supporting_patches` and
+`any_pair_supporting_leagues` are unions across those entries and therefore do
+not claim whole-partial-team persistence. `exact_joint_patches` and
+`exact_joint_leagues` contain only contexts where the candidate and every
+locked champion appeared together. Context lists and pair entries are emitted
+in deterministic order.
 
 ### Role feasibility
 

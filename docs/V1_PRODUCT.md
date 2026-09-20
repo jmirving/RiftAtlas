@@ -41,8 +41,8 @@ A candidate result should be capable of exposing at least:
 - exact joint support count for `locked + candidate`, when present
 - pairwise support counts
 - coverage across the locked set
-- patch persistence
-- league persistence
+- patch persistence at per-pair, any-pair union, and exact-joint levels
+- league persistence at per-pair, any-pair union, and exact-joint levels
 - role feasibility / remaining role possibilities
 - enough source counts/context to explain why the candidate appears
 
@@ -91,6 +91,13 @@ Relationships observed across multiple patches and/or leagues are more robust
 than relationships isolated to one narrow pocket of the professional meta.
 
 Persistence should remain inspectable rather than silently hiding context.
+For each candidate, every locked-champion pair reports the patches and leagues
+supporting that pair. Candidate-level `any_pair_supporting_patches` and
+`any_pair_supporting_leagues` are the unions of those pair contexts; they do
+not imply that the whole partial team appeared in each context. The separate
+`exact_joint_patches` and `exact_joint_leagues` fields report only observations
+containing every locked champion plus the candidate and are empty when there is
+no exact joint support. All context arrays are sorted for deterministic output.
 
 ### 6. Role feasibility
 

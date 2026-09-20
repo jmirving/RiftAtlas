@@ -96,8 +96,10 @@ change or permanently discard the underlying evidence.
 
 The JSON result reports candidate and locked-champion sample counts, pairwise
 co-pick support, popularity-normalized lift, confidence-adjusted lift, coverage,
-exact and subset joint support, supporting patches/leagues, and every ranking
-component. Role feasibility is explicitly `not_evaluated` unless `--role-data`
+exact and subset joint support, per-pair supporting patches/leagues, explicitly
+named any-pair union context, exact-joint context, and every ranking component.
+The union fields do not imply that the entire partial team appeared in each
+listed context. Role feasibility is explicitly `not_evaluated` unless `--role-data`
 points to caller-supplied JSON such as `{"Maokai":["jungle","support"]}`.
 
 See `docs/CURRENT_STATE.md` for the present architecture,
