@@ -2,6 +2,7 @@ from __future__ import annotations
 
 DRAFT_SCHEMA_VERSION = "1"
 RELATIONSHIP_SCHEMA_VERSION = "1"
+RECOMMENDATION_SCHEMA_VERSION = "1"
 
 CONTEXT_COLUMNS = (
     "gameid",

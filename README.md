@@ -64,6 +64,17 @@ Build relationships with:
 
 `rift-atlas build --input path/to/drafts.csv --output build/relationships.jsonl`
 
+Recommend additions to a partial allied draft with deterministic, inspectable
+evidence:
+
+`rift-atlas recommend --input path/to/drafts.csv --pick Maokai --pick Jinx --limit 20`
+
+The JSON result reports candidate and locked-champion sample counts, pairwise
+co-pick support, popularity-normalized lift, confidence-adjusted lift, coverage,
+exact and subset joint support, supporting patches/leagues, and every ranking
+component. Role feasibility is explicitly `not_evaluated` unless `--role-data`
+points to caller-supplied JSON such as `{"Maokai":["jungle","support"]}`.
+
 See `docs/CURRENT_STATE.md` for the present architecture,
 `docs/V1_PRODUCT.md` for the first product milestone, and
 `docs/VISION.md` for possible longer-term directions.

@@ -60,9 +60,9 @@ Direction is determined from the standard competitive pick order. This is an
 observed sequencing relationship. It is not yet a claim that the source caused
 the target pick or that the target is a counter.
 
-## v1 product direction
+## v1 recommendation layer
 
-The first recommendation surface is:
+The implemented recommendation surface is:
 
 `locked allied picks -> ranked candidate additions + evidence`
 
@@ -70,8 +70,7 @@ If X is locked, RiftAtlas can rank candidate companions. If X and Y are locked,
 candidate Z must be evaluated against the whole set `{X, Y}`; the system must
 not merely follow the most recent edge `Y -> Z`.
 
-The first ranking/evidence model should remain explainable. Useful signals
-include:
+The ranking/evidence model remains explainable and returns:
 
 - pairwise association with every locked champion
 - exact joint support when the partial composition plus candidate has actually
@@ -83,9 +82,9 @@ include:
 - role feasibility
 
 Exact-composition support will become sparse as the partial team grows. The
-system should therefore be able to fall back from exact joint evidence toward
-pairwise/partial evidence without pretending that no exact historical match
-means no compatibility.
+system therefore returns exact, subset, and pairwise evidence. Ranking considers
+whole-set coverage first and does not reject a candidate merely because exact
+joint support is zero.
 
 The output should expose component evidence rather than immediately compressing
 everything into an opaque universal "RiftAtlas score."
@@ -97,8 +96,9 @@ five-role team.
 
 Role feasibility is therefore part of the v1 product requirement, but the
 current canonical drafts artifact does not itself contain reliable champion-role
-assignments. Implementation must use an explicit role-data source or injectable
-role-policy seam. It must **not** infer role from draft pick order.
+assignments. The recommendation API accepts an explicit role policy, and the CLI
+can load a caller-supplied champion-to-roles JSON mapping. Neither infers role
+from draft pick order. Without a role source, output says `not_evaluated`.
 
 Flex champions should preserve multiple possible role assignments until the
 partial composition logically narrows them.
@@ -111,7 +111,9 @@ partial composition logically narrows them.
 - explicit input and output schema versions
 - atomic output replacement
 - unit coverage for relationship counts, response direction, schema rejection,
-  and file generation
+  file generation, recommendation evidence/ranking, and role feasibility
+- an in-memory inverted observation index for repeatable recommendation queries
+- deterministic machine-readable `rift-atlas recommend` JSON output
 - GitHub Actions CI for the unit suite
 
 There is no database, graph database, web server, model, embedding system, or
@@ -131,24 +133,18 @@ The graph currently represents observation evidence, not game outcome. It
 therefore cannot by itself distinguish a commonly drafted companion from an
 effective companion.
 
-The current code builds observation artifacts but does not yet aggregate or
-query them for partial-draft recommendations.
-
 The JSONL artifact is an interchange format, not a commitment to the final
 storage technology.
 
 ## Immediate next steps
 
-1. Implement the v1 partial-draft recommendation query described in
-   `V1_PRODUCT.md`.
-2. Add a consumer contract test using a real processor-produced drafts artifact.
-3. Add deterministic aggregate/index views needed for fast recommendation
-   evidence.
-4. Define the role-data source/policy seam and preserve flex-role uncertainty.
-5. Reconcile champion labels to a canonical DDragon-backed champion identity.
-6. Decide how RiftAtlas artifacts are versioned and published by the League data
+1. Add a consumer contract test using a real processor-produced drafts artifact.
+2. Reconcile champion labels to a canonical DDragon-backed champion identity.
+3. Decide how RiftAtlas artifacts are versioned and published by the League data
    refresh job.
-7. Design ban relationships only after the first allied-draft path is useful.
+4. Measure the in-memory aggregate against the full production artifact and add
+   a persisted derived index only if startup or memory warrants it.
+5. Design ban relationships only after the first allied-draft path is useful.
 
 ## Design rule
 
