@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "rift-atlas"
+version = "0.1.0"
+description = "Context-preserving League of Legends draft relationship graph"
+readme = "README.md"
+requires-python = ">=3.12"
+authors = [
+  { name = "Joseph Irving" }
+]
+dependencies = []
+
+[project.scripts]
+rift-atlas = "rift_atlas.cli:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
