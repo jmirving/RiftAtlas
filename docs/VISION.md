@@ -2,10 +2,14 @@
 
 This document is intentionally broader than a roadmap.
 
-RiftAtlas begins as a small evidence builder, but the underlying asset is a
-contextual history of how League drafts relate champions to one another. Several
-valuable end states are possible, and the project should preserve the option to
-reach them without pretending today that all of them are required.
+RiftAtlas begins with one concrete product: grow a user-chosen allied partial
+draft into evidence-backed, role-feasible candidate continuations. The
+underlying asset is a contextual history of how League drafts relate champions
+to one another. Several broader end states are possible, and the project should
+preserve the option to reach them without pretending today that all of them are
+required.
+
+The active v1 product contract lives in `V1_PRODUCT.md`.
 
 ## Stable identity: the atlas, not the storage engine
 
@@ -18,21 +22,23 @@ embeddings, or a combination may be appropriate at different scales.
 
 The public semantics should outlive the implementation.
 
-## End state A: trustworthy draft relationship service
+## End state A: trustworthy allied draft companion
 
-The smallest mature end state is a queryable service answering factual
-questions about observed draft behavior.
+The nearest mature end state is a queryable companion for growing an allied
+partial draft.
 
 Examples:
 
-- What is commonly picked with champion X?
-- What is commonly picked into champion X?
-- Once X is shown, what becomes more likely to be selected next?
-- How do those relationships change by patch, league, side, or draft phase?
-- Is a relationship persistent or concentrated in one short-lived meta?
+- We are picking X; what is well supported with it?
+- Given X + Y, what candidates fit both rather than only Y?
+- Which candidates have exact historical trio/four-champion support?
+- Which branches remain role-feasible?
+- Which relationships persist across patches or leagues?
+- What are several coherent graph-supported five-champion paths from X?
 
 This version needs strong aggregation, filtering, confidence/sample-size
-reporting, and stable consumer contracts. It does not require machine learning.
+reporting, role feasibility, and stable consumer contracts. It does not require
+machine learning.
 
 ## End state B: semantic champion relationship atlas
 

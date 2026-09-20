@@ -6,8 +6,10 @@ Status date: 2026-09-20
 
 RiftAtlas is the relationship-evidence layer for League of Legends draft data.
 
-Its job is to transform observed professional drafts into explicit graph-shaped
-facts that other tools can aggregate, query, model, or explain.
+Its first concrete product goal is to help complete an **allied partial draft**.
+The caller supplies one or more champions that are already locked for whatever
+reason; RiftAtlas answers which champions are well supported as additions and
+why.
 
 RiftAtlas is deliberately separate from prediction and draft construction.
 DraftSage is not a runtime dependency. DraftEngine is not a runtime dependency.
@@ -26,7 +28,7 @@ The processor added this artifact alongside its legacy outputs. RiftAtlas
 consumes the new artifact directly, so adopting RiftAtlas does not require
 changing DraftSage's existing inputs.
 
-## What v1 implements
+## Current observation layer
 
 The initial codebase has one pipeline:
 
@@ -58,6 +60,49 @@ Direction is determined from the standard competitive pick order. This is an
 observed sequencing relationship. It is not yet a claim that the source caused
 the target pick or that the target is a counter.
 
+## v1 product direction
+
+The first recommendation surface is:
+
+`locked allied picks -> ranked candidate additions + evidence`
+
+If X is locked, RiftAtlas can rank candidate companions. If X and Y are locked,
+candidate Z must be evaluated against the whole set `{X, Y}`; the system must
+not merely follow the most recent edge `Y -> Z`.
+
+The first ranking/evidence model should remain explainable. Useful signals
+include:
+
+- pairwise association with every locked champion
+- exact joint support when the partial composition plus candidate has actually
+  occurred
+- coverage across the locked set, so one strong pair does not hide weak or
+  absent relationships elsewhere
+- sample confidence
+- persistence across patches and leagues
+- role feasibility
+
+Exact-composition support will become sparse as the partial team grows. The
+system should therefore be able to fall back from exact joint evidence toward
+pairwise/partial evidence without pretending that no exact historical match
+means no compatibility.
+
+The output should expose component evidence rather than immediately compressing
+everything into an opaque universal "RiftAtlas score."
+
+### Role feasibility
+
+A five-champion recommendation is not useful if it cannot form a plausible
+five-role team.
+
+Role feasibility is therefore part of the v1 product requirement, but the
+current canonical drafts artifact does not itself contain reliable champion-role
+assignments. Implementation must use an explicit role-data source or injectable
+role-policy seam. It must **not** infer role from draft pick order.
+
+Flex champions should preserve multiple possible role assignments until the
+partial composition logically narrows them.
+
 ## Current technical shape
 
 - Python 3.12+
@@ -83,25 +128,27 @@ not emit ban relationships. Ban intent is substantially easier to overstate than
 pick ordering, especially in the first ban phase.
 
 The graph currently represents observation evidence, not game outcome. It
-therefore cannot by itself distinguish a commonly drafted response from an
-effective response.
+therefore cannot by itself distinguish a commonly drafted companion from an
+effective companion.
+
+The current code builds observation artifacts but does not yet aggregate or
+query them for partial-draft recommendations.
 
 The JSONL artifact is an interchange format, not a commitment to the final
 storage technology.
 
 ## Immediate next steps
 
-1. Add a consumer contract test using a real processor-produced drafts artifact.
-2. Decide how RiftAtlas artifacts are versioned and published by the League data
+1. Implement the v1 partial-draft recommendation query described in
+   `V1_PRODUCT.md`.
+2. Add a consumer contract test using a real processor-produced drafts artifact.
+3. Add deterministic aggregate/index views needed for fast recommendation
+   evidence.
+4. Define the role-data source/policy seam and preserve flex-role uncertainty.
+5. Reconcile champion labels to a canonical DDragon-backed champion identity.
+6. Decide how RiftAtlas artifacts are versioned and published by the League data
    refresh job.
-3. Add deterministic aggregate views over relationship observations.
-4. Reconcile champion labels to a canonical DDragon-backed champion identity.
-5. Design ban relationships with explicit semantics for pre-pick bans and
-   second-phase bans.
-6. Add outcome/role/team/player context only when a concrete question requires
-   it.
-7. Expose a consumer interface after the useful query shapes are known; do not
-   build an API merely because an API is conventional.
+7. Design ban relationships only after the first allied-draft path is useful.
 
 ## Design rule
 
