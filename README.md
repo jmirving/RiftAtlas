@@ -69,6 +69,17 @@ evidence:
 
 `rift-atlas recommend --input path/to/drafts.csv --pick Maokai --pick Jinx --limit 20`
 
+Explore the observed allied co-pick graph in a lightweight local UI:
+
+`rift-atlas explore --input path/to/drafts.csv`
+
+The command opens `http://127.0.0.1:8765/` by default (use `--no-open` to only
+print the URL). Search for a champion, click a connection to inspect its raw and
+normalized evidence, or click a neighboring champion to re-center the graph.
+Edge width encodes confidence-adjusted lift; node size encodes baseline team
+support. The visible legend documents both encodings, and the UI describes
+co-picks as observations rather than recommendations or claims of synergy.
+
 The JSON result reports candidate and locked-champion sample counts, pairwise
 co-pick support, popularity-normalized lift, confidence-adjusted lift, coverage,
 exact and subset joint support, supporting patches/leagues, and every ranking

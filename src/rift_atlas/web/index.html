@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>RiftAtlas — Relationship explorer</title>
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body>
+    <header class="topbar">
+      <a class="brand" href="/" aria-label="RiftAtlas home">
+        <span class="brand-mark" aria-hidden="true">RA</span>
+        <span><strong>RiftAtlas</strong><small>Relationship explorer</small></span>
+      </a>
+      <form id="search-form" class="search" role="search">
+        <label for="champion-search">Focus champion</label>
+        <div class="search-row">
+          <input id="champion-search" name="champion" list="champion-options"
+            autocomplete="off" placeholder="Search Maokai…" required>
+          <datalist id="champion-options"></datalist>
+          <button type="submit">Explore</button>
+        </div>
+        <p id="search-status" class="status" role="status"></p>
+      </form>
+      <div class="limit-control">
+        <label for="neighbor-limit">Visible neighbors <output id="limit-output">12</output></label>
+        <input id="neighbor-limit" type="range" min="4" max="30" value="12" step="1">
+      </div>
+    </header>
+
+    <main>
+      <section class="workspace" aria-label="Champion relationship graph">
+        <div class="workspace-heading">
+          <div>
+            <p class="eyebrow">Allied draft observations</p>
+            <h1 id="graph-title">Choose a champion to begin</h1>
+          </div>
+          <div class="legend" aria-label="Graph encoding legend">
+            <span><i class="edge-key"></i> Edge width = confidence-adjusted lift</span>
+            <span><i class="node-key"></i> Node size = baseline support</span>
+          </div>
+        </div>
+        <div id="empty-state" class="empty-state">
+          <span class="empty-orbit" aria-hidden="true"></span>
+          <p>Search a champion to inspect its observed co-pick relationships.</p>
+        </div>
+        <svg id="graph" viewBox="0 0 1000 680" role="img"
+          aria-labelledby="graph-title graph-description" hidden>
+          <desc id="graph-description">An interactive graph of champion co-pick observations.</desc>
+          <g id="edges"></g>
+          <g id="nodes"></g>
+        </svg>
+      </section>
+
+      <aside class="inspector" aria-live="polite">
+        <div class="inspector-section evidence">
+          <p class="eyebrow">Selected evidence</p>
+          <div id="evidence-panel">
+            <h2>Nothing selected</h2>
+            <p>Choose a node or connection to inspect the observations behind it.</p>
+          </div>
+        </div>
+        <div class="inspector-section dataset">
+          <p class="eyebrow">Dataset context</p>
+          <dl id="dataset-context">
+            <div><dt>Status</dt><dd>Waiting for a focus champion</dd></div>
+          </dl>
+        </div>
+        <div class="inspector-section note">
+          <p><strong>Reading the graph</strong></p>
+          <p>Connections describe observed co-selection on the same team. They do not claim synergy, quality, or a recommended pick.</p>
+        </div>
+      </aside>
+    </main>
+
+    <script src="/app.js" defer></script>
+  </body>
+</html>

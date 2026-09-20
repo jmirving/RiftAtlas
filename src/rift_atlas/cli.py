@@ -5,6 +5,7 @@ import json
 from collections.abc import Sequence
 
 from rift_atlas.builder import build_relationship_file, read_drafts
+from rift_atlas.explorer import serve_explorer
 from rift_atlas.recommendation import MappingRolePolicy, RecommendationIndex
 
 
@@ -45,6 +46,23 @@ def build_parser() -> argparse.ArgumentParser:
         help="Return role-infeasible candidates with an explicit flag instead of rejecting them.",
     )
 
+    explore = subparsers.add_parser(
+        "explore",
+        help="Explore observed champion relationships in a local web UI.",
+    )
+    explore.add_argument("--input", required=True, help="Canonical drafts CSV.")
+    explore.add_argument(
+        "--role-data",
+        help="Optional role/context JSON; its presence is reported as dataset context.",
+    )
+    explore.add_argument("--host", default="127.0.0.1")
+    explore.add_argument("--port", type=int, default=8765)
+    explore.add_argument(
+        "--no-open",
+        action="store_true",
+        help="Print the local URL without opening a browser.",
+    )
+
     return parser
 
 
@@ -72,6 +90,22 @@ def main(argv: Sequence[str] | None = None) -> int:
             include_infeasible=args.include_infeasible,
         )
         print(json.dumps(result, sort_keys=True, separators=(",", ":")))
+        return 0
+
+    if args.command == "explore":
+        if args.role_data:
+            with open(args.role_data, encoding="utf-8") as handle:
+                role_data = json.load(handle)
+            if not isinstance(role_data, dict):
+                raise ValueError("Role data must be a JSON object mapping champions to roles.")
+        serve_explorer(
+            read_drafts(args.input),
+            input_path=args.input,
+            role_context_loaded=bool(args.role_data),
+            host=args.host,
+            port=args.port,
+            open_browser=not args.no_open,
+        )
         return 0
 
     raise AssertionError(f"Unhandled command: {args.command}")

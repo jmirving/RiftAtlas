@@ -36,6 +36,9 @@ class DraftRecord:
                 raise ValueError(f"Missing required value {name}{location}.")
             return value
 
+        def optional(name: str) -> str:
+            return (row.get(name) or "").strip()
+
         schema_version = required("schema_version")
         if schema_version != DRAFT_SCHEMA_VERSION:
             raise ValueError(
@@ -62,7 +65,9 @@ class DraftRecord:
                 gameid=required("gameid"),
                 date=required("date"),
                 year=required("year"),
-                split=required("split"),
+                # Oracle's Elixir leaves split blank for some valid games. Keep
+                # that source context lossless rather than rejecting the draft.
+                split=optional("split"),
                 league=required("league"),
                 patch=required("patch"),
                 game=required("game"),

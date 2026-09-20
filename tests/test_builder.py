@@ -96,6 +96,14 @@ class RelationshipBuilderTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "Unsupported drafts schema_version"):
             DraftRecord.from_row(row)
 
+    def test_blank_split_context_is_preserved(self) -> None:
+        row = sample_row()
+        row["split"] = ""
+
+        record = DraftRecord.from_row(row)
+
+        self.assertEqual("", record.context.split)
+
     def test_build_writes_deterministic_jsonl_and_stats(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

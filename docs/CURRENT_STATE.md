@@ -114,10 +114,15 @@ partial composition logically narrows them.
   file generation, recommendation evidence/ranking, and role feasibility
 - an in-memory inverted observation index for repeatable recommendation queries
 - deterministic machine-readable `rift-atlas recommend` JSON output
+- a reusable, neutral co-pick relationship query index
+- a dependency-free local relationship explorer with champion search,
+  deterministic neighbor limits, graph navigation, edge evidence, and dataset
+  context
 - GitHub Actions CI for the unit suite
 
-There is no database, graph database, web server, model, embedding system, or
-production publication target in v1.
+There is no database, graph database, model, embedding system, or production
+publication target in v1. The explorer's HTTP server is local-only by default
+and uses the Python standard library.
 
 ## Known limitations
 
