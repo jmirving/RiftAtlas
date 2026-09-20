@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from importlib.resources import files
+from math import log1p
 from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, urlparse
@@ -27,6 +28,8 @@ class RelationshipIndex:
     """Immutable aggregate for neutral, evidence-first graph exploration."""
 
     ASSOCIATION_PRIOR = 2
+    MIN_NODE_RADIUS = 24.0
+    MAX_NODE_RADIUS = 58.0
 
     def __init__(
         self,
@@ -138,11 +141,23 @@ class RelationshipIndex:
             )
         )
         visible = neighbors[:limit]
+        visible_supports = [self._support[canonical]] + [
+            int(item["baseline_support"]) for item in visible
+        ]
+        minimum_support = min(visible_supports)
+        maximum_support = max(visible_supports)
+        for item in visible:
+            item["visual_radius"] = self._node_radius(
+                int(item["baseline_support"]), minimum_support, maximum_support
+            )
         return {
             "relationship_types": ["co_pick"],
             "focal": {
                 "champion": canonical,
                 "baseline_support": self._support[canonical],
+                "visual_radius": self._node_radius(
+                    self._support[canonical], minimum_support, maximum_support
+                ),
             },
             "neighbors": visible,
             "neighbor_count": len(neighbors),
@@ -150,10 +165,29 @@ class RelationshipIndex:
             "dataset": self.dataset_context,
             "encoding": {
                 "edge_width": "confidence_adjusted_lift",
+                "edge_opacity": "co_pick_support",
                 "node_size": "baseline_support",
+                "node_radius_scale": {
+                    "transform": "log1p",
+                    "minimum": self.MIN_NODE_RADIUS,
+                    "maximum": self.MAX_NODE_RADIUS,
+                },
                 "association_prior": self.ASSOCIATION_PRIOR,
             },
         }
+
+    @classmethod
+    def _node_radius(cls, support: int, minimum: int, maximum: int) -> float:
+        """Map support to a bounded perceptual radius within the visible graph."""
+        if maximum == minimum:
+            return (cls.MIN_NODE_RADIUS + cls.MAX_NODE_RADIUS) / 2
+        scaled = (log1p(support) - log1p(minimum)) / (
+            log1p(maximum) - log1p(minimum)
+        )
+        radius = cls.MIN_NODE_RADIUS + scaled * (
+            cls.MAX_NODE_RADIUS - cls.MIN_NODE_RADIUS
+        )
+        return round(radius, 2)
 
 
 def _static_asset(name: str) -> bytes:

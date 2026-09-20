@@ -112,21 +112,32 @@ function renderGraph(data) {
   const lifts = data.neighbors.map((item) => item.confidence_adjusted_lift);
   const minLift = Math.min(...lifts, 0);
   const maxLift = Math.max(...lifts, 1);
-  const supports = [data.focal.baseline_support, ...data.neighbors.map((item) => item.baseline_support)];
-  const minSupport = Math.min(...supports);
-  const maxSupport = Math.max(...supports);
-  const nodeRadius = (support, focal = false) => {
-    const scaled = maxSupport === minSupport ? .5 : (support - minSupport) / (maxSupport - minSupport);
-    return (focal ? 42 : 25) + scaled * (focal ? 11 : 12);
-  };
+  const edgeOpacity = (support) => .22 + .68 * (1 - Math.exp(-support / 6));
 
   data.neighbors.forEach((edge, index) => {
     const position = positions[index];
     const scaled = maxLift === minLift ? .5 : (edge.confidence_adjusted_lift - minLift) / (maxLift - minLift);
-    const group = element("g", { class: "edge-group", tabindex: "0", role: "button", "aria-label": `${data.focal.champion} and ${edge.champion} co-pick evidence` });
+    const group = element("g", {
+      class: "edge-group",
+      tabindex: "0",
+      role: "button",
+      "aria-label": `${data.focal.champion} and ${edge.champion}: ${edge.co_pick_support} observed co-picks, lift ${edge.lift.toFixed(3)}, confidence-adjusted lift ${edge.confidence_adjusted_lift.toFixed(3)}`,
+    });
     const attributes = { x1: center.x, y1: center.y, x2: position.x, y2: position.y };
-    group.append(element("line", { ...attributes, class: "edge", "stroke-width": (1.5 + scaled * 7).toFixed(2), opacity: (.45 + scaled * .45).toFixed(2) }));
+    group.append(element("line", {
+      ...attributes,
+      class: "edge",
+      "stroke-width": (1.5 + scaled * 7).toFixed(2),
+      opacity: edgeOpacity(edge.co_pick_support).toFixed(2),
+    }));
     group.append(element("line", { ...attributes, class: "edge-hit" }));
+    const midpoint = { x: (center.x + position.x) / 2, y: (center.y + position.y) / 2 };
+    const edgeLabel = element("g", { class: "edge-label", transform: `translate(${midpoint.x} ${midpoint.y})` });
+    edgeLabel.append(element("rect", { x: "-34", y: "-10", width: "68", height: "20", rx: "3" }));
+    const edgeLabelText = element("text", { y: "4" });
+    edgeLabelText.textContent = `${edge.co_pick_support} co-pick${edge.co_pick_support === 1 ? "" : "s"}`;
+    edgeLabel.append(edgeLabelText);
+    group.append(edgeLabel);
     const select = () => {
       document.querySelectorAll(".selected").forEach((item) => item.classList.remove("selected"));
       group.classList.add("selected");
@@ -140,12 +151,12 @@ function renderGraph(data) {
   data.neighbors.forEach((node, index) => {
     const position = positions[index];
     const group = element("g", { class: "node", transform: `translate(${position.x} ${position.y})`, tabindex: "0", role: "button", "aria-label": `${node.champion}, ${node.baseline_support} team drafts` });
-    group.append(element("circle", { r: nodeRadius(node.baseline_support) }));
+    group.append(element("circle", { r: node.visual_radius }));
     const label = element("text", { y: "4" });
     label.textContent = node.champion;
     group.append(label);
     const support = element("text", { y: "21", class: "support" });
-    support.textContent = `n=${node.baseline_support}`;
+    support.textContent = `played: ${node.baseline_support}`;
     group.append(support);
     const select = () => {
       loadGraph(node.champion);
@@ -156,12 +167,12 @@ function renderGraph(data) {
   });
 
   const focal = element("g", { class: "node focal", transform: `translate(${center.x} ${center.y})`, tabindex: "0", role: "button", "aria-label": `${data.focal.champion}, focal champion` });
-  focal.append(element("circle", { r: nodeRadius(data.focal.baseline_support, true) }));
+  focal.append(element("circle", { r: data.focal.visual_radius }));
   const focalLabel = element("text", { y: "2" });
   focalLabel.textContent = data.focal.champion;
   focal.append(focalLabel);
   const focalSupport = element("text", { y: "22", class: "support" });
-  focalSupport.textContent = `n=${data.focal.baseline_support}`;
+  focalSupport.textContent = `played: ${data.focal.baseline_support}`;
   focal.append(focalSupport);
   focal.addEventListener("click", () => showNodeEvidence(data.focal, true));
   nodeLayer.append(focal);

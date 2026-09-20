@@ -76,9 +76,13 @@ Explore the observed allied co-pick graph in a lightweight local UI:
 The command opens `http://127.0.0.1:8765/` by default (use `--no-open` to only
 print the URL). Search for a champion, click a connection to inspect its raw and
 normalized evidence, or click a neighboring champion to re-center the graph.
-Edge width encodes confidence-adjusted lift; node size encodes baseline team
-support. The visible legend documents both encodings, and the UI describes
-co-picks as observations rather than recommendations or claims of synergy.
+Edge width encodes confidence-adjusted lift, edge opacity encodes observed
+co-pick support, and node size encodes baseline team support. Exact co-pick
+counts are labeled on the graph. Node radii use a bounded logarithmic scale so
+large support differences remain visible without letting common champions
+dominate the graph. The visible legend documents these encodings, and the UI
+describes co-picks as observations rather than recommendations or claims of
+synergy.
 
 The JSON result reports candidate and locked-champion sample counts, pairwise
 co-pick support, popularity-normalized lift, confidence-adjusted lift, coverage,

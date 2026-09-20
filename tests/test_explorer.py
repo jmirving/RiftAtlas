@@ -77,6 +77,34 @@ class RelationshipIndexTests(unittest.TestCase):
         self.assertEqual(["1.1", "1.2"], edge["supporting_patches"])
         self.assertEqual(["L1", "L2"], edge["supporting_leagues"])
 
+    def test_graph_documents_separate_association_and_evidence_encodings(self) -> None:
+        encoding = sample_index().graph("A")["encoding"]
+
+        self.assertEqual("confidence_adjusted_lift", encoding["edge_width"])
+        self.assertEqual("co_pick_support", encoding["edge_opacity"])
+        self.assertEqual("baseline_support", encoding["node_size"])
+        self.assertEqual(
+            {"transform": "log1p", "minimum": 24.0, "maximum": 58.0},
+            encoding["node_radius_scale"],
+        )
+
+    def test_node_radius_scale_is_bounded_monotonic_and_compressed(self) -> None:
+        supports = [5, 50, 742]
+        radii = [
+            RelationshipIndex._node_radius(support, supports[0], supports[-1])
+            for support in supports
+        ]
+
+        self.assertEqual(RelationshipIndex.MIN_NODE_RADIUS, radii[0])
+        self.assertEqual(RelationshipIndex.MAX_NODE_RADIUS, radii[-1])
+        self.assertLess(radii[0], radii[1])
+        self.assertLess(radii[1], radii[2])
+        linear_middle = radii[0] + (radii[-1] - radii[0]) * (50 - 5) / (742 - 5)
+        self.assertGreater(radii[1], linear_middle)
+
+    def test_equal_node_supports_use_midpoint_radius(self) -> None:
+        self.assertEqual(41.0, RelationshipIndex._node_radius(10, 10, 10))
+
     def test_unknown_champion_and_no_self_neighbor(self) -> None:
         index = sample_index()
 
@@ -118,7 +146,15 @@ class ExplorerServerTests(unittest.TestCase):
 
         self.assertIn("Relationship explorer", page)
         self.assertIn("do not claim synergy", page)
+        self.assertIn("Thicker edge = stronger confidence-adjusted association", page)
+        self.assertIn("Darker edge = more observed co-picks", page)
+        self.assertIn("Larger node = champion appeared in more team drafts", page)
         self.assertIn("renderGraph", script)
+        self.assertIn("played: ${node.baseline_support}", script)
+        self.assertIn("edgeOpacity(edge.co_pick_support)", script)
+        self.assertIn("co-pick${edge.co_pick_support === 1", script)
+        self.assertIn('r: node.visual_radius', script)
+        self.assertIn("paint-order: stroke fill", styles)
         self.assertIn(".workspace", styles)
         self.assertEqual("A", payload["focal"]["champion"])
         self.assertEqual(1, len(payload["neighbors"]))

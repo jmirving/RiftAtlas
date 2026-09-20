@@ -79,23 +79,36 @@ main { display: grid; grid-template-columns: minmax(0, 1fr) 340px; height: calc(
 h1 { margin: 0; font-size: clamp(20px, 2.3vw, 34px); font-weight: 570; letter-spacing: -.04em; }
 .legend { display: grid; gap: 8px; color: var(--muted); font-size: 11px; text-align: right; }
 .legend span { display: flex; justify-content: flex-end; align-items: center; gap: 9px; }
-.edge-key { width: 29px; height: 4px; background: var(--accent); }
+.edge-key { width: 29px; height: 2px; background: var(--accent); }
+.edge-width-key { height: 5px; }
+.edge-opacity-key { opacity: .42; }
 .node-key { width: 11px; height: 11px; border-radius: 50%; background: var(--green); }
 
 #graph { position: relative; width: 100%; height: 100%; }
 .edge { stroke: var(--accent-soft); cursor: pointer; transition: stroke .15s, opacity .15s; }
 .edge-hit { stroke: transparent; stroke-width: 18; cursor: pointer; }
-.edge-group:hover .edge, .edge-group.selected .edge { stroke: var(--accent); opacity: 1; }
+.edge-group:hover .edge, .edge-group.selected .edge { stroke: var(--accent); }
+.edge-label { pointer-events: none; }
+.edge-label rect { fill: #141612; stroke: #34372f; stroke-width: 1; }
+.edge-label text {
+  fill: #c5c1b7; font: 600 9px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+  text-anchor: middle; letter-spacing: .01em;
+}
+.edge-group:hover .edge-label rect, .edge-group.selected .edge-label rect { stroke: var(--accent-soft); }
+.edge-group:hover .edge-label text, .edge-group.selected .edge-label text { fill: var(--ink); }
 .node { cursor: pointer; }
 .node circle { transform-box: fill-box; transform-origin: center; transition: transform .16s ease; }
 .node:hover circle { transform: scale(1.07); }
 .node circle { fill: #20251f; stroke: #6f7c6b; stroke-width: 2; }
 .node.focal circle { fill: var(--accent); stroke: #f6d394; stroke-width: 3; }
 .node.selected circle { stroke: var(--ink); stroke-width: 3; }
-.node text { fill: var(--ink); font-weight: 650; font-size: 15px; text-anchor: middle; pointer-events: none; paint-order: stroke; stroke: #111310; stroke-width: 5px; }
-.node.focal text { fill: #17140d; stroke: transparent; font-size: 18px; }
+.node text {
+  fill: var(--ink); font-weight: 650; font-size: 15px; text-anchor: middle; pointer-events: none;
+  paint-order: stroke fill; stroke: #111310; stroke-width: 6px; stroke-linejoin: round;
+}
+.node.focal text { fill: #fff2d8; font-size: 18px; }
 .node .support { fill: var(--muted); font-size: 10px; font-weight: 500; }
-.node.focal .support { fill: #55401d; }
+.node.focal .support { fill: #ffe0a6; }
 .graph-enter { animation: enter .38s both cubic-bezier(.2,.8,.2,1); }
 @keyframes enter { from { opacity: 0; transform: scale(.96); } to { opacity: 1; transform: scale(1); } }
 
@@ -129,8 +142,9 @@ dd { margin: 0; color: var(--ink); font: 550 12px/1.45 ui-monospace, SFMono-Regu
 
 @media (max-width: 600px) {
   .topbar { grid-template-columns: 1fr; padding: 16px; }
-  .workspace-heading { inset: 18px 16px auto; }
-  .legend { display: none; }
+  .workspace-heading { inset: 18px 16px auto; flex-direction: column; gap: 12px; }
+  .legend { gap: 5px; text-align: left; }
+  .legend span { justify-content: flex-start; }
   .workspace { height: 62vh; }
   .node text { font-size: 12px; }
 }
