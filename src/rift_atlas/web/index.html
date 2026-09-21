@@ -43,30 +43,69 @@
           </div>
         </div>
         <div class="view-controls" aria-label="Relationship view controls">
-          <fieldset class="mode-control">
-            <legend>Relationship view</legend>
-            <div class="mode-options">
-              <button type="button" class="mode-button active" data-mode="established" aria-pressed="true">Established</button>
-              <button type="button" class="mode-button" data-mode="frequent" aria-pressed="false">Frequent</button>
-              <button type="button" class="mode-button" data-mode="surprising" aria-pressed="false">Surprising</button>
+          <div class="pin-controls" aria-label="Pinned champions">
+            <span class="pin-label">Pinned set</span>
+            <div id="pinned-champions" class="pinned-champions" aria-live="polite">
+              <span class="no-pins">No explicit pins — the focused champion drives the graph.</span>
             </div>
-          </fieldset>
-          <div class="support-control">
-            <label for="minimum-support">Minimum co-picks <output id="support-output">1</output></label>
-            <input id="minimum-support" type="range" min="1" max="10" value="1" step="1">
+            <span id="pin-limit-status" class="pin-limit-status" aria-live="polite"></span>
+            <button id="clear-pins" class="toolbar-button" type="button" disabled>Clear pins</button>
+          </div>
+          <div class="primary-controls">
+            <fieldset class="mode-control">
+              <legend>Relationship view</legend>
+              <div class="mode-options">
+                <button type="button" class="mode-button active" data-mode="established" aria-pressed="true">Established</button>
+                <button type="button" class="mode-button" data-mode="frequent" aria-pressed="false">Frequent</button>
+                <button type="button" class="mode-button" data-mode="surprising" aria-pressed="false">Surprising</button>
+              </div>
+            </fieldset>
+            <div class="support-control">
+              <label for="minimum-support">Minimum co-picks <output id="support-output">1</output></label>
+              <input id="minimum-support" type="range" min="1" max="10" value="1" step="1">
+            </div>
+            <p id="filter-summary" class="filter-summary" aria-live="polite">All patches · All leagues</p>
+            <button id="filter-toggle" class="toolbar-button filter-toggle" type="button"
+              aria-expanded="false" aria-controls="context-filters">Filters <span aria-hidden="true">+</span></button>
+            <button id="reset-view" class="toolbar-button" type="button">Reset view</button>
           </div>
           <p id="mode-description" class="mode-description">Balances normalized association with the amount of supporting evidence.</p>
+          <div id="context-filters" class="context-filters" aria-label="Dataset filters" hidden>
+            <div class="filter-field">
+              <label for="patch-from">Patch from</label>
+              <select id="patch-from"><option value="">Any</option></select>
+            </div>
+            <div class="filter-field">
+              <label for="patch-to">Through</label>
+              <select id="patch-to"><option value="">Any</option></select>
+            </div>
+            <button id="clear-patches" class="clear-filters" type="button">Clear patches</button>
+            <button id="clear-filters" class="clear-filters" type="button">Clear filters</button>
+            <fieldset class="league-filter">
+              <legend>Leagues</legend>
+              <div class="league-actions">
+                <button id="select-all-leagues" type="button">Select all</button>
+                <button id="clear-all-leagues" type="button">Clear all</button>
+                <label class="top-regions"><input id="top-regions" type="checkbox"> Top regions</label>
+              </div>
+              <div id="league-options" class="league-options" aria-label="League selections"></div>
+            </fieldset>
+          </div>
         </div>
-        <div id="empty-state" class="empty-state">
-          <span class="empty-orbit" aria-hidden="true"></span>
-          <p>Search a champion to inspect its observed co-pick relationships.</p>
+        <div class="graph-stage">
+          <div id="empty-state" class="empty-state">
+            <span class="empty-orbit" aria-hidden="true"></span>
+            <p id="empty-state-message">Search a champion to inspect its observed co-pick relationships.</p>
+          </div>
+          <svg id="graph" viewBox="0 0 1000 800" role="img"
+            aria-labelledby="graph-title graph-description" hidden>
+            <desc id="graph-description">An interactive, pannable graph of co-pick observations around a pinned champion set.</desc>
+            <g id="graph-viewport">
+              <g id="edges"></g>
+              <g id="nodes"></g>
+            </g>
+          </svg>
         </div>
-        <svg id="graph" viewBox="0 0 1000 680" role="img"
-          aria-labelledby="graph-title graph-description" hidden>
-          <desc id="graph-description">An interactive graph of champion co-pick observations.</desc>
-          <g id="edges"></g>
-          <g id="nodes"></g>
-        </svg>
       </section>
 
       <aside class="inspector" aria-live="polite">
@@ -85,7 +124,7 @@
         </div>
         <div class="inspector-section note">
           <p><strong>Reading the graph</strong></p>
-          <p>Connections describe observed co-selection on the same team. Views change how observations are ranked; they do not claim synergy, quality, or a recommended pick.</p>
+          <p>Connections describe observed co-selection on the same team. Coverage shows how much of the pinned set has pairwise evidence. Views change how observations are ranked; they do not claim synergy, quality, or a recommended pick.</p>
         </div>
       </aside>
     </main>

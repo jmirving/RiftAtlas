@@ -127,7 +127,12 @@ partial composition logically narrows them.
 - a reusable, neutral co-pick relationship query index
 - a dependency-free local relationship explorer with champion search, three
   deterministic relationship views, a minimum-support filter, clockwise rank
-  semantics, graph navigation, edge evidence, and dataset context
+  semantics, persistent multi-champion pins, whole-set coverage, exact and
+  subset joint support, per-pair graph edges, graph navigation that preserves
+  pins, patch-range and multi-select league population filters (including an
+  explicit Top regions preset), contextual edge distributions, explicit
+  filtered-versus-total dataset counts, a collapsible filter tray, and a
+  persistent pannable graph viewport
 - GitHub Actions CI for the unit suite
 
 There is no database, graph database, model, embedding system, or production

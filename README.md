@@ -74,8 +74,10 @@ Explore the observed allied co-pick graph in a lightweight local UI:
 `rift-atlas explore --input path/to/drafts.csv`
 
 The command opens `http://127.0.0.1:8765/` by default (use `--no-open` to only
-print the URL). Search for a champion, click a connection to inspect its raw and
-normalized evidence, or click a neighboring champion to re-center the graph.
+print the URL). Search for a champion, pin up to four allied champions, and
+inspect candidates connected to all or part of that set. Selecting a candidate
+shows its coverage, exact joint support, and subset support; Follow node changes
+the focus without clearing the pins. Each edge remains independently inspectable.
 Edge width encodes confidence-adjusted lift, edge opacity encodes observed
 co-pick support, and node size encodes baseline team support. Exact co-pick
 counts are labeled on the graph. Node radii use a bounded logarithmic scale so
@@ -85,14 +87,29 @@ describes co-picks as observations rather than recommendations or claims of
 synergy.
 
 The explorer offers three deterministic relationship views over the same edge
-evidence. Confidence-adjusted lift is `lift × support / (support + 2)`.
-**Established** (the default) orders by confidence-adjusted lift, then co-pick
-support, then champion name. **Frequent** orders by co-pick support, then
-confidence-adjusted lift, then champion name. **Surprising** orders by raw lift,
-then co-pick support, then champion name. The highest-ranked visible
-relationship is placed at 12 o'clock and rank continues clockwise. A minimum
-co-pick control filters low-sample relationships at query time; it does not
-change or permanently discard the underlying evidence.
+evidence. All prioritize coverage across the pinned set before their named
+signal. Confidence-adjusted lift is `lift × support / (support + 2)`.
+**Established** emphasizes the weakest confidence-adjusted pair, **Frequent**
+emphasizes total pair support, and **Surprising** emphasizes the weakest raw
+pairwise lift. Exact joint evidence and deterministic name ordering break later
+ties. The highest-ranked visible candidate is placed at 12 o'clock and rank
+continues clockwise. A minimum co-pick control determines which pairwise edges
+count toward coverage and visibility; it does not discard the underlying
+evidence shown in the candidate details.
+
+Optional patch-range and multi-select league filters rebuild the graph metrics
+from only the team observations in scope. League controls include Select all,
+Clear all, and an explicit Top regions preset. The dataset inspector reports
+both filtered and total game/team-observation counts. Selecting a relationship
+shows its co-pick support as patch and league count distributions, making narrow
+contextual concentration visible without assigning an unexplained persistence
+score.
+
+The primary relationship controls and active filter summary stay visible while
+the detailed patch/league tray collapses to return space to the graph. Dragging
+empty graph space pans the shared node-and-edge viewport; Reset view restores
+its centered position. Query-driven graph refreshes preserve that pan position,
+including when following a connected champion.
 
 The JSON result reports candidate and locked-champion sample counts, pairwise
 co-pick support, popularity-normalized lift, confidence-adjusted lift, coverage,

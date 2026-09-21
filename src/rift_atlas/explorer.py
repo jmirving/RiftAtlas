@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from importlib.resources import files
+from itertools import combinations
 from math import log1p
 from pathlib import Path
 from typing import Any
@@ -17,11 +18,23 @@ from urllib.parse import parse_qs, urlparse
 from rift_atlas.model import DraftRecord
 
 
+TOP_REGION_LEAGUES = ("LCK", "LPL", "LEC", "LCS", "LCP")
+
+
+def _patch_sort_key(value: str) -> tuple[tuple[int, int | str], ...]:
+    """Sort dotted patch labels naturally while retaining arbitrary labels."""
+    return tuple(
+        (0, int(part)) if part.isdigit() else (1, part.casefold())
+        for part in value.split(".")
+    )
+
+
 @dataclass(frozen=True)
 class TeamObservation:
     champions: frozenset[str]
     patch: str
     league: str
+    game_id: str
 
 
 @dataclass(frozen=True)
@@ -36,6 +49,8 @@ class RelationshipEvidence:
     confidence_adjusted_lift: float
     supporting_patches: tuple[str, ...]
     supporting_leagues: tuple[str, ...]
+    patch_distribution: tuple[tuple[str, int], ...]
+    league_distribution: tuple[tuple[str, int], ...]
 
     def as_dict(self) -> dict[str, object]:
         return {
@@ -49,6 +64,14 @@ class RelationshipEvidence:
             "confidence_adjusted_lift": self.confidence_adjusted_lift,
             "supporting_patches": list(self.supporting_patches),
             "supporting_leagues": list(self.supporting_leagues),
+            "patch_distribution": [
+                {"patch": patch, "count": count}
+                for patch, count in self.patch_distribution
+            ],
+            "league_distribution": [
+                {"league": league, "count": count}
+                for league, count in self.league_distribution
+            ],
         }
 
 
@@ -62,18 +85,18 @@ class RelationshipIndex:
     MODE_DESCRIPTIONS = {
         "established": {
             "label": "Established",
-            "description": "Balances normalized association with the amount of supporting evidence.",
-            "ordering": "confidence-adjusted lift descending, then co-pick support descending, then champion name",
+            "description": "Prioritizes coverage across the pinned set, then balances normalized association with supporting evidence.",
+            "ordering": "coverage descending, then minimum confidence-adjusted lift, exact joint support, mean adjusted lift, minimum pair support, and champion name",
         },
         "frequent": {
             "label": "Frequent",
-            "description": "Shows the relationships observed together most often.",
-            "ordering": "co-pick support descending, then confidence-adjusted lift descending, then champion name",
+            "description": "Prioritizes coverage, then relationships observed together most often across the pinned set.",
+            "ordering": "coverage descending, then total pair support, exact joint support, mean adjusted lift, and champion name",
         },
         "surprising": {
             "label": "Surprising",
-            "description": "Surfaces unusually strong normalized association, including rare pairs.",
-            "ordering": "lift descending, then co-pick support descending, then champion name",
+            "description": "Prioritizes coverage, then unusually strong normalized association across every pinned relationship.",
+            "ordering": "coverage descending, then minimum lift, exact joint support, total pair support, and champion name",
         },
     }
 
@@ -93,7 +116,12 @@ class RelationshipIndex:
                 for champion in picks:
                     canonical.setdefault(champion.casefold(), champion)
                 observations.append(
-                    TeamObservation(frozenset(picks), record.context.patch, record.context.league)
+                    TeamObservation(
+                        frozenset(picks),
+                        record.context.patch,
+                        record.context.league,
+                        record.context.gameid,
+                    )
                 )
 
         self._observations = tuple(observations)
@@ -114,7 +142,9 @@ class RelationshipIndex:
         self._context = {
             "games_loaded": games,
             "team_observations_loaded": len(observations),
-            "patches": sorted({observation.patch for observation in observations}),
+            "patches": sorted(
+                {observation.patch for observation in observations}, key=_patch_sort_key
+            ),
             "leagues": sorted({observation.league for observation in observations}),
             "input_identifier": input_identifier,
             "role_context_loaded": role_context_loaded,
@@ -144,9 +174,15 @@ class RelationshipIndex:
         self,
         champion: str,
         *,
+        pinned: Iterable[str] | None = None,
         limit: int = 12,
         mode: str = DEFAULT_MODE,
         minimum_support: int = 1,
+        patch: str | None = None,
+        patch_from: str | None = None,
+        patch_to: str | None = None,
+        league: str | None = None,
+        leagues: Iterable[str] | None = None,
     ) -> dict[str, object]:
         if limit < 0:
             raise ValueError("limit must be non-negative.")
@@ -158,40 +194,67 @@ class RelationshipIndex:
         canonical = self._canonical.get(champion.strip().casefold())
         if canonical is None:
             raise ValueError(f"Unknown champion: {champion}")
+        requested_pins = tuple(pinned) if pinned is not None else (canonical,)
+        if not requested_pins:
+            raise ValueError("At least one pinned champion is required.")
+        folded_pins = [item.strip().casefold() for item in requested_pins]
+        if len(set(folded_pins)) != len(folded_pins):
+            raise ValueError("Pinned champions must be distinct.")
+        unknown_pins = [
+            item for item, key in zip(requested_pins, folded_pins)
+            if key not in self._canonical
+        ]
+        if unknown_pins:
+            raise ValueError("Unknown pinned champion(s): " + ", ".join(unknown_pins))
+        if len(requested_pins) >= 5:
+            raise ValueError("Exploration requires fewer than five pinned champions.")
+        normalized_pins = tuple(self._canonical[key] for key in folded_pins)
+        observations, active_filters = self._filtered_observations(
+            patch=patch,
+            patch_from=patch_from,
+            patch_to=patch_to,
+            league=league,
+            leagues=leagues,
+        )
+        scoped_support = Counter(
+            item for observation in observations for item in observation.champions
+        )
+        observation_ids: dict[str, set[int]] = {
+            item: set() for item in scoped_support
+        }
+        for index, observation in enumerate(observations):
+            for item in observation.champions:
+                observation_ids[item].add(index)
 
-        focal_ids = self._observation_ids[canonical]
-        evidence: list[RelationshipEvidence] = []
-        for neighbor in self._support:
-            if neighbor == canonical:
+        pinned_set = frozenset(normalized_pins)
+        evidence: list[dict[str, object]] = []
+        relationship_count = 0
+        for neighbor in scoped_support:
+            if neighbor in pinned_set:
                 continue
-            matching = focal_ids.intersection(self._observation_ids[neighbor])
-            if not matching:
+            item = self._candidate_evidence(
+                normalized_pins,
+                neighbor,
+                observations,
+                observation_ids,
+                scoped_support,
+                minimum_support,
+            )
+            if any(int(pair["co_pick_support"]) > 0 for pair in item["pairwise_evidence"]):
+                relationship_count += 1
+            if not any(
+                int(pair["co_pick_support"]) >= minimum_support
+                for pair in item["pairwise_evidence"]
+            ):
                 continue
-            support = len(matching)
-            focal_support = self._support[canonical]
-            neighbor_support = self._support[neighbor]
-            lift = (
-                support * len(self._observations) / (focal_support * neighbor_support)
-            )
-            adjusted = lift * support / (support + self.ASSOCIATION_PRIOR)
-            contexts = [self._observations[index] for index in matching]
-            evidence.append(
-                RelationshipEvidence(
-                    champion=neighbor,
-                    baseline_support=neighbor_support,
-                    co_pick_support=support,
-                    focal_support=focal_support,
-                    lift=lift,
-                    confidence_adjusted_lift=adjusted,
-                    supporting_patches=tuple(sorted({item.patch for item in contexts})),
-                    supporting_leagues=tuple(sorted({item.league for item in contexts})),
-                )
-            )
+            evidence.append(item)
 
-        eligible = [item for item in evidence if item.co_pick_support >= minimum_support]
-        eligible.sort(key=lambda item: self._ranking_key(item, mode))
-        visible = [item.as_dict() for item in eligible[:limit]]
-        visible_supports = [self._support[canonical]] + [
+        evidence.sort(key=lambda item: self._candidate_ranking_key(item, mode))
+        visible = evidence[:limit]
+        focal_support = len(observation_ids.get(canonical, set()))
+        visible_supports = [
+            len(observation_ids.get(item, set())) for item in normalized_pins
+        ] + [
             int(item["baseline_support"]) for item in visible
         ]
         minimum_visible_support = min(visible_supports)
@@ -202,20 +265,42 @@ class RelationshipIndex:
                 minimum_visible_support,
                 maximum_visible_support,
             )
+        pinned_nodes = []
+        for item in normalized_pins:
+            support = len(observation_ids.get(item, set()))
+            pinned_nodes.append(
+                {
+                    "champion": item,
+                    "baseline_support": support,
+                    "visual_radius": self._node_radius(
+                        support, minimum_visible_support, maximum_visible_support
+                    ),
+                }
+            )
+        pinned_edges = []
+        for left, right in combinations(normalized_pins, 2):
+            pair = self._pair_evidence(
+                left, right, observations, observation_ids, scoped_support
+            )
+            pair.pop("_matching_indexes")
+            pinned_edges.append(pair)
         return {
             "relationship_types": ["co_pick"],
+            "pinned_champions": list(normalized_pins),
+            "pinned": pinned_nodes,
+            "pinned_edges": pinned_edges,
             "focal": {
                 "champion": canonical,
-                "baseline_support": self._support[canonical],
+                "baseline_support": focal_support,
                 "visual_radius": self._node_radius(
-                    self._support[canonical],
+                    focal_support,
                     minimum_visible_support,
                     maximum_visible_support,
                 ),
             },
             "neighbors": visible,
-            "neighbor_count": len(eligible),
-            "relationship_count": len(evidence),
+            "neighbor_count": len(evidence),
+            "relationship_count": relationship_count,
             "visible_neighbor_limit": limit,
             "minimum_support": minimum_support,
             "mode": mode,
@@ -224,7 +309,7 @@ class RelationshipIndex:
                 name: dict(description)
                 for name, description in self.MODE_DESCRIPTIONS.items()
             },
-            "dataset": self.dataset_context,
+            "dataset": self._dataset_context_for(observations, active_filters),
             "encoding": {
                 "edge_width": "confidence_adjusted_lift",
                 "edge_opacity": "co_pick_support",
@@ -237,6 +322,275 @@ class RelationshipIndex:
                 "association_prior": self.ASSOCIATION_PRIOR,
             },
         }
+
+    def _candidate_evidence(
+        self,
+        pinned: tuple[str, ...],
+        candidate: str,
+        observations: tuple[TeamObservation, ...],
+        observation_ids: dict[str, set[int]],
+        scoped_support: Counter[str],
+        minimum_support: int,
+    ) -> dict[str, object]:
+        pairwise = [
+            self._pair_evidence(
+                locked, candidate, observations, observation_ids, scoped_support
+            )
+            for locked in pinned
+        ]
+        pair_counts = [int(pair["co_pick_support"]) for pair in pairwise]
+        adjusted = [float(pair["confidence_adjusted_lift"]) for pair in pairwise]
+        lifts = [float(pair["lift"]) for pair in pairwise]
+        exact_indexes = self._matching_scoped_observations(
+            (*pinned, candidate), observation_ids
+        )
+        exact_contexts = [observations[index] for index in exact_indexes]
+        union_indexes: set[int] = set()
+        for pair in pairwise:
+            union_indexes.update(pair.pop("_matching_indexes"))
+        union_contexts = [observations[index] for index in union_indexes]
+        patch_counts = Counter(item.patch for item in union_contexts)
+        league_counts = Counter(item.league for item in union_contexts)
+        exact_patch_counts = Counter(item.patch for item in exact_contexts)
+        exact_league_counts = Counter(item.league for item in exact_contexts)
+        subset_support: dict[str, int] = {}
+        for size in range(2, len(pinned) + 1):
+            for subset in combinations(pinned, size):
+                label = " + ".join((*subset, candidate))
+                subset_support[label] = len(
+                    self._matching_scoped_observations(
+                        (*subset, candidate), observation_ids
+                    )
+                )
+        coverage_count = sum(value >= minimum_support for value in pair_counts)
+        candidate_support = scoped_support[candidate]
+        return {
+            "champion": candidate,
+            "baseline_support": candidate_support,
+            "candidate_support": candidate_support,
+            "pairwise_evidence": pairwise,
+            "coverage_count": coverage_count,
+            "coverage_ratio": coverage_count / len(pinned),
+            "exact_joint_support": len(exact_indexes),
+            "subset_support": subset_support,
+            "any_pair_supporting_patches": sorted(patch_counts, key=_patch_sort_key),
+            "any_pair_supporting_leagues": sorted(league_counts),
+            "exact_joint_patches": sorted(exact_patch_counts, key=_patch_sort_key),
+            "exact_joint_leagues": sorted(exact_league_counts),
+            "patch_distribution": [
+                {"patch": value, "count": patch_counts[value]}
+                for value in sorted(patch_counts, key=_patch_sort_key)
+            ],
+            "league_distribution": [
+                {"league": value, "count": league_counts[value]}
+                for value in sorted(league_counts)
+            ],
+            "exact_joint_patch_distribution": [
+                {"patch": value, "count": exact_patch_counts[value]}
+                for value in sorted(exact_patch_counts, key=_patch_sort_key)
+            ],
+            "exact_joint_league_distribution": [
+                {"league": value, "count": exact_league_counts[value]}
+                for value in sorted(exact_league_counts)
+            ],
+            # Compatibility aggregate for existing single-focus clients.
+            "co_pick_support": sum(pair_counts),
+            "focal_support": int(pairwise[0]["locked_support"]),
+            "neighbor_support": candidate_support,
+            "lift": sum(lifts) / len(lifts),
+            "confidence_adjusted_lift": sum(adjusted) / len(adjusted),
+            "supporting_patches": sorted(patch_counts, key=_patch_sort_key),
+            "supporting_leagues": sorted(league_counts),
+            "ranking_components": {
+                "minimum_pair_support": min(pair_counts),
+                "total_pair_support": sum(pair_counts),
+                "minimum_lift": min(lifts),
+                "minimum_confidence_adjusted_lift": min(adjusted),
+                "mean_confidence_adjusted_lift": sum(adjusted) / len(adjusted),
+            },
+        }
+
+    def _pair_evidence(
+        self,
+        locked: str,
+        candidate: str,
+        observations: tuple[TeamObservation, ...],
+        observation_ids: dict[str, set[int]],
+        scoped_support: Counter[str],
+    ) -> dict[str, object]:
+        matching = observation_ids.get(locked, set()).intersection(
+            observation_ids.get(candidate, set())
+        )
+        support = len(matching)
+        locked_support = scoped_support[locked]
+        candidate_support = scoped_support[candidate]
+        lift = (
+            support * len(observations) / (locked_support * candidate_support)
+            if support and locked_support and candidate_support
+            else 0.0
+        )
+        adjusted = lift * support / (support + self.ASSOCIATION_PRIOR)
+        contexts = [observations[index] for index in matching]
+        patch_counts = Counter(item.patch for item in contexts)
+        league_counts = Counter(item.league for item in contexts)
+        return {
+            "locked_champion": locked,
+            "candidate_champion": candidate,
+            "co_pick_support": support,
+            "locked_support": locked_support,
+            "candidate_support": candidate_support,
+            "lift": lift,
+            "confidence_adjusted_lift": adjusted,
+            "supporting_patches": sorted(patch_counts, key=_patch_sort_key),
+            "supporting_leagues": sorted(league_counts),
+            "patch_distribution": [
+                {"patch": value, "count": patch_counts[value]}
+                for value in sorted(patch_counts, key=_patch_sort_key)
+            ],
+            "league_distribution": [
+                {"league": value, "count": league_counts[value]}
+                for value in sorted(league_counts)
+            ],
+            "_matching_indexes": sorted(matching),
+        }
+
+    @staticmethod
+    def _matching_scoped_observations(
+        champions: Iterable[str], observation_ids: dict[str, set[int]]
+    ) -> set[int]:
+        indexes = [observation_ids.get(champion, set()) for champion in champions]
+        return set.intersection(*indexes) if indexes else set()
+
+    @staticmethod
+    def _candidate_ranking_key(
+        evidence: dict[str, object], mode: str
+    ) -> tuple[object, ...]:
+        components = evidence["ranking_components"]
+        assert isinstance(components, dict)
+        name = str(evidence["champion"])
+        alphabetical = (name.casefold(), name)
+        if mode == "frequent":
+            return (
+                -int(evidence["coverage_count"]),
+                -int(components["total_pair_support"]),
+                -int(evidence["exact_joint_support"]),
+                -float(components["mean_confidence_adjusted_lift"]),
+                *alphabetical,
+            )
+        if mode == "surprising":
+            return (
+                -int(evidence["coverage_count"]),
+                -float(components["minimum_lift"]),
+                -int(evidence["exact_joint_support"]),
+                -int(components["total_pair_support"]),
+                *alphabetical,
+            )
+        return (
+            -int(evidence["coverage_count"]),
+            -float(components["minimum_confidence_adjusted_lift"]),
+            -int(evidence["exact_joint_support"]),
+            -float(components["mean_confidence_adjusted_lift"]),
+            -int(components["minimum_pair_support"]),
+            *alphabetical,
+        )
+
+    def _filtered_observations(
+        self,
+        *,
+        patch: str | None,
+        patch_from: str | None,
+        patch_to: str | None,
+        league: str | None,
+        leagues: Iterable[str] | None,
+    ) -> tuple[tuple[TeamObservation, ...], dict[str, object]]:
+        if patch and (patch_from or patch_to):
+            raise ValueError("patch cannot be combined with patch_from or patch_to")
+        if league is not None and leagues is not None:
+            raise ValueError("league cannot be combined with leagues")
+        known_patches = set(self._context["patches"])
+        known_leagues = set(self._context["leagues"])
+        for name, value in (
+            ("patch", patch),
+            ("patch_from", patch_from),
+            ("patch_to", patch_to),
+        ):
+            if value and value not in known_patches:
+                raise ValueError(f"Unknown {name}: {value}")
+        selected_leagues = (
+            tuple(sorted(set(leagues))) if leagues is not None else None
+        )
+        if league is not None:
+            selected_leagues = (league,)
+        unknown_leagues = (
+            set(selected_leagues).difference(known_leagues)
+            if selected_leagues is not None
+            else set()
+        )
+        if unknown_leagues:
+            raise ValueError(f"Unknown league: {', '.join(sorted(unknown_leagues))}")
+        if (
+            patch_from
+            and patch_to
+            and _patch_sort_key(patch_from) > _patch_sort_key(patch_to)
+        ):
+            raise ValueError("patch_from must not be after patch_to")
+
+        active_filters: dict[str, object] = {
+            name: value
+            for name, value in (
+                ("patch", patch),
+                ("patch_from", patch_from),
+                ("patch_to", patch_to),
+            )
+            if value
+        }
+        if selected_leagues is not None:
+            active_filters["leagues"] = list(selected_leagues)
+        selected_league_set = (
+            set(selected_leagues) if selected_leagues is not None else None
+        )
+        filtered = tuple(
+            observation
+            for observation in self._observations
+            if (not patch or observation.patch == patch)
+            and (
+                not patch_from
+                or _patch_sort_key(observation.patch) >= _patch_sort_key(patch_from)
+            )
+            and (
+                not patch_to
+                or _patch_sort_key(observation.patch) <= _patch_sort_key(patch_to)
+            )
+            and (
+                selected_league_set is None
+                or observation.league in selected_league_set
+            )
+        )
+        return filtered, active_filters
+
+    def _dataset_context_for(
+        self,
+        observations: tuple[TeamObservation, ...],
+        active_filters: dict[str, object],
+    ) -> dict[str, object]:
+        context = self.dataset_context
+        context.update(
+            {
+                "games_in_scope": len({item.game_id for item in observations}),
+                "team_observations_in_scope": len(observations),
+                "patches_in_scope": sorted(
+                    {item.patch for item in observations}, key=_patch_sort_key
+                ),
+                "leagues_in_scope": sorted({item.league for item in observations}),
+                "top_region_leagues": [
+                    league
+                    for league in TOP_REGION_LEAGUES
+                    if league in self._context["leagues"]
+                ],
+                "active_filters": active_filters,
+            }
+        )
+        return context
 
     @staticmethod
     def _ranking_key(
@@ -282,12 +636,12 @@ def make_handler(index: RelationshipIndex) -> type[BaseHTTPRequestHandler]:
             parsed = urlparse(self.path)
             try:
                 if parsed.path == "/api/champions":
-                    query = parse_qs(parsed.query)
+                    query = parse_qs(parsed.query, keep_blank_values=True)
                     limit = _integer_parameter(query, "limit", 20, maximum=100)
                     self._json({"champions": index.search(query.get("q", [""])[0], limit=limit)})
                     return
                 if parsed.path == "/api/graph":
-                    query = parse_qs(parsed.query)
+                    query = parse_qs(parsed.query, keep_blank_values=True)
                     champion = query.get("champion", [""])[0]
                     if not champion:
                         self._json({"error": "champion is required"}, HTTPStatus.BAD_REQUEST)
@@ -297,12 +651,26 @@ def make_handler(index: RelationshipIndex) -> type[BaseHTTPRequestHandler]:
                         query, "minimum_support", 1, minimum=1, maximum=100_000
                     )
                     mode = query.get("mode", [RelationshipIndex.DEFAULT_MODE])[0]
+                    patch = query.get("patch", [None])[0]
+                    patch_from = query.get("patch_from", [None])[0]
+                    patch_to = query.get("patch_to", [None])[0]
+                    leagues = query.get("league")
+                    pinned = query.get("pinned")
                     self._json(
                         index.graph(
                             champion,
+                            pinned=pinned,
                             limit=limit,
                             mode=mode,
                             minimum_support=minimum_support,
+                            patch=patch,
+                            patch_from=patch_from,
+                            patch_to=patch_to,
+                            leagues=(
+                                [value for value in leagues if value]
+                                if leagues is not None
+                                else None
+                            ),
                         )
                     )
                     return
