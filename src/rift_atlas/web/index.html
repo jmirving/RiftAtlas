@@ -40,6 +40,7 @@
             <span><i class="edge-key edge-width-key"></i> Thicker edge = stronger confidence-adjusted association</span>
             <span><i class="edge-key edge-opacity-key"></i> Darker edge = more observed co-picks</span>
             <span><i class="node-key"></i> Larger node = champion appeared in more team drafts</span>
+            <span><i class="node-key role-infeasible-key"></i> Red ring = role-infeasible candidate</span>
           </div>
         </div>
         <div class="view-controls" aria-label="Relationship view controls">
@@ -64,6 +65,10 @@
               <label for="minimum-support">Minimum co-picks <output id="support-output">1</output></label>
               <input id="minimum-support" type="range" min="1" max="10" value="1" step="1">
             </div>
+            <label class="role-filter" title="Role-infeasible candidates remain visible by default so their relationship evidence can still be inspected.">
+              <input id="hide-role-infeasible" type="checkbox" disabled>
+              <span id="hide-role-label">Hide role-infeasible</span>
+            </label>
             <p id="filter-summary" class="filter-summary" aria-live="polite">All patches · All leagues</p>
             <button id="filter-toggle" class="toolbar-button filter-toggle" type="button"
               aria-expanded="false" aria-controls="context-filters">Filters <span aria-hidden="true">+</span></button>
@@ -99,7 +104,7 @@
           </div>
           <svg id="graph" viewBox="0 0 1000 800" role="img"
             aria-labelledby="graph-title graph-description" hidden>
-            <desc id="graph-description">An interactive, pannable graph of co-pick observations around a pinned champion set.</desc>
+            <desc id="graph-description">An interactive graph of co-pick observations around a pinned champion set. Drag empty space to pan, use the mouse wheel to zoom, and choose Reset view to recenter.</desc>
             <g id="graph-viewport">
               <g id="edges"></g>
               <g id="nodes"></g>
@@ -114,6 +119,13 @@
           <div id="evidence-panel">
             <h2>Nothing selected</h2>
             <p>Choose a node or connection to inspect the observations behind it.</p>
+          </div>
+        </div>
+        <div class="inspector-section roles">
+          <p class="eyebrow">Role feasibility</p>
+          <div id="role-summary">
+            <h2>Not evaluated</h2>
+            <p>Load role data to inspect composition-feasible assignments.</p>
           </div>
         </div>
         <div class="inspector-section dataset">

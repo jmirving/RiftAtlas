@@ -107,7 +107,11 @@ Role feasibility must come from an explicit role source or role-policy input.
 Draft pick order is not a role label.
 
 Flex champions should retain multiple plausible assignments until other picks
-narrow the state.
+narrow the state. A champion's reported role possibilities are constrained to
+roles that participate in at least one valid distinct-role assignment for the
+entire current partial composition. If no such assignment exists, the
+composition is infeasible and no role is reported as possible. Missing role
+data remains explicitly unknown rather than being inferred from pick order.
 
 ## Evidence fallback as the draft grows
 

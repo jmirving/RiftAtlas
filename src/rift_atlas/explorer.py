@@ -16,6 +16,7 @@ from typing import Any
 from urllib.parse import parse_qs, urlparse
 
 from rift_atlas.model import DraftRecord
+from rift_atlas.recommendation import RolePolicy
 
 
 TOP_REGION_LEAGUES = ("LCK", "LPL", "LEC", "LCS", "LCP")
@@ -106,6 +107,7 @@ class RelationshipIndex:
         *,
         input_identifier: str,
         role_context_loaded: bool = False,
+        role_policy: RolePolicy | None = None,
     ) -> None:
         observations: list[TeamObservation] = []
         canonical: dict[str, str] = {}
@@ -139,6 +141,7 @@ class RelationshipIndex:
             champion: frozenset(indexes)
             for champion, indexes in observation_ids.items()
         }
+        self._role_policy = role_policy
         self._context = {
             "games_loaded": games,
             "team_observations_loaded": len(observations),
@@ -147,7 +150,7 @@ class RelationshipIndex:
             ),
             "leagues": sorted({observation.league for observation in observations}),
             "input_identifier": input_identifier,
-            "role_context_loaded": role_context_loaded,
+            "role_context_loaded": role_context_loaded or role_policy is not None,
         }
 
     @property
@@ -183,6 +186,7 @@ class RelationshipIndex:
         patch_to: str | None = None,
         league: str | None = None,
         leagues: Iterable[str] | None = None,
+        hide_role_infeasible: bool = False,
     ) -> dict[str, object]:
         if limit < 0:
             raise ValueError("limit must be non-negative.")
@@ -240,6 +244,9 @@ class RelationshipIndex:
                 scoped_support,
                 minimum_support,
             )
+            item["role_feasibility"] = self._evaluate_roles(
+                (*normalized_pins, neighbor)
+            )
             if any(int(pair["co_pick_support"]) > 0 for pair in item["pairwise_evidence"]):
                 relationship_count += 1
             if not any(
@@ -249,6 +256,15 @@ class RelationshipIndex:
                 continue
             evidence.append(item)
 
+        role_infeasible_candidate_count = sum(
+            item["role_feasibility"]["feasible"] is False for item in evidence
+        )
+        if hide_role_infeasible:
+            evidence = [
+                item
+                for item in evidence
+                if item["role_feasibility"]["feasible"] is not False
+            ]
         evidence.sort(key=lambda item: self._candidate_ranking_key(item, mode))
         visible = evidence[:limit]
         focal_support = len(observation_ids.get(canonical, set()))
@@ -287,6 +303,12 @@ class RelationshipIndex:
         return {
             "relationship_types": ["co_pick"],
             "pinned_champions": list(normalized_pins),
+            "role_policy": (
+                "not_configured" if self._role_policy is None else "configured"
+            ),
+            "pinned_role_feasibility": self._evaluate_roles(normalized_pins),
+            "hide_role_infeasible": hide_role_infeasible,
+            "role_infeasible_candidate_count": role_infeasible_candidate_count,
             "pinned": pinned_nodes,
             "pinned_edges": pinned_edges,
             "focal": {
@@ -322,6 +344,17 @@ class RelationshipIndex:
                 "association_prior": self.ASSOCIATION_PRIOR,
             },
         }
+
+    def _evaluate_roles(self, champions: Iterable[str]) -> dict[str, object]:
+        composition = tuple(champions)
+        if self._role_policy is None:
+            return {
+                "status": "not_evaluated",
+                "feasible": None,
+                "possible_roles": {champion: [] for champion in composition},
+                "reason": "Role data is not configured.",
+            }
+        return self._role_policy.evaluate(composition).as_dict()
 
     def _candidate_evidence(
         self,
@@ -656,6 +689,9 @@ def make_handler(index: RelationshipIndex) -> type[BaseHTTPRequestHandler]:
                     patch_to = query.get("patch_to", [None])[0]
                     leagues = query.get("league")
                     pinned = query.get("pinned")
+                    hide_role_infeasible = _boolean_parameter(
+                        query, "hide_role_infeasible", False
+                    )
                     self._json(
                         index.graph(
                             champion,
@@ -671,6 +707,7 @@ def make_handler(index: RelationshipIndex) -> type[BaseHTTPRequestHandler]:
                                 if leagues is not None
                                 else None
                             ),
+                            hide_role_infeasible=hide_role_infeasible,
                         )
                     )
                     return
@@ -724,6 +761,17 @@ def _integer_parameter(
     return value
 
 
+def _boolean_parameter(
+    query: dict[str, list[str]], name: str, default: bool
+) -> bool:
+    raw = query.get(name, [str(default)])[0].casefold()
+    if raw in {"true", "1", "yes"}:
+        return True
+    if raw in {"false", "0", "no"}:
+        return False
+    raise ValueError(f"{name} must be true or false")
+
+
 def create_server(
     index: RelationshipIndex, host: str = "127.0.0.1", port: int = 8765
 ) -> ThreadingHTTPServer:
@@ -735,6 +783,7 @@ def serve_explorer(
     *,
     input_path: str | Path,
     role_context_loaded: bool = False,
+    role_policy: RolePolicy | None = None,
     host: str = "127.0.0.1",
     port: int = 8765,
     open_browser: bool = True,
@@ -743,6 +792,7 @@ def serve_explorer(
         records,
         input_identifier=str(input_path),
         role_context_loaded=role_context_loaded,
+        role_policy=role_policy,
     )
     server = create_server(index, host, port)
     actual_port = server.server_address[1]

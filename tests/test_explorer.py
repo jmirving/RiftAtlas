@@ -8,6 +8,7 @@ from urllib.request import urlopen
 
 from rift_atlas.explorer import TOP_REGION_LEAGUES, RelationshipIndex, create_server
 from rift_atlas.model import DraftContext, DraftRecord
+from rift_atlas.recommendation import MappingRolePolicy
 
 
 def record(
@@ -182,6 +183,66 @@ class RelationshipIndexTests(unittest.TestCase):
             index.graph("A", pinned=["Missing"])
         with self.assertRaisesRegex(ValueError, "fewer than five"):
             index.graph("A", pinned=["A", "B", "C", "D", "E"])
+
+    def test_role_feasibility_overlays_pinned_and_candidate_compositions(self) -> None:
+        index = RelationshipIndex(
+            [
+                record(1, ("Top", "Jungle", "Bottom", "Flex", "Support")),
+                record(2, ("Top", "Jungle", "Bottom", "Flex", "MidOnly")),
+            ],
+            input_identifier="fixtures/roles.csv",
+            role_policy=MappingRolePolicy(
+                {
+                    "Top": ["top"],
+                    "Jungle": ["jungle"],
+                    "Bottom": ["bottom"],
+                    "Flex": ["mid", "bottom"],
+                    "Support": ["support"],
+                    "MidOnly": ["mid"],
+                }
+            ),
+        )
+
+        graph = index.graph(
+            "Top", pinned=["Top", "Jungle", "Bottom", "Flex"], limit=50
+        )
+        candidates = {item["champion"]: item for item in graph["neighbors"]}
+
+        self.assertEqual("configured", graph["role_policy"])
+        self.assertEqual("feasible", graph["pinned_role_feasibility"]["status"])
+        self.assertEqual(
+            ["mid"], graph["pinned_role_feasibility"]["possible_roles"]["Flex"]
+        )
+        self.assertEqual("feasible", candidates["Support"]["role_feasibility"]["status"])
+        self.assertEqual(
+            ["mid"], candidates["Support"]["role_feasibility"]["possible_roles"]["Flex"]
+        )
+        self.assertEqual("infeasible", candidates["MidOnly"]["role_feasibility"]["status"])
+        self.assertEqual(1, graph["role_infeasible_candidate_count"])
+
+        hidden = index.graph(
+            "Top",
+            pinned=["Top", "Jungle", "Bottom", "Flex"],
+            limit=50,
+            hide_role_infeasible=True,
+        )
+        self.assertNotIn("MidOnly", [item["champion"] for item in hidden["neighbors"]])
+        self.assertTrue(hidden["hide_role_infeasible"])
+
+    def test_role_feasibility_is_explicit_when_unconfigured_or_incomplete(self) -> None:
+        unconfigured = sample_index().graph("A", limit=1)
+        incomplete = RelationshipIndex(
+            [record(1, ("A", "B", "C", "D", "E"))],
+            input_identifier="fixtures/incomplete-roles.csv",
+            role_policy=MappingRolePolicy({"A": ["top"]}),
+        ).graph("A", limit=1)
+
+        self.assertEqual("not_configured", unconfigured["role_policy"])
+        self.assertEqual(
+            "not_evaluated", unconfigured["neighbors"][0]["role_feasibility"]["status"]
+        )
+        self.assertEqual("unknown", incomplete["neighbors"][0]["role_feasibility"]["status"])
+        self.assertIn("No supplied role data", incomplete["neighbors"][0]["role_feasibility"]["reason"])
 
     def test_patch_and_league_filters_recompute_graph_from_scoped_population(self) -> None:
         index = RelationshipIndex(
@@ -389,12 +450,16 @@ class ExplorerServerTests(unittest.TestCase):
         self.assertIn('aria-controls="context-filters"', page)
         self.assertIn('id="context-filters"', page)
         self.assertIn('id="reset-view"', page)
+        self.assertIn('id="hide-role-infeasible"', page)
+        self.assertIn('id="role-summary"', page)
         self.assertIn('<g id="graph-viewport">', page)
         self.assertIn('query.append("league", league)', script)
         self.assertIn('graph.addEventListener("pointerdown"', script)
         self.assertIn("graph.setPointerCapture(event.pointerId)", script)
         self.assertIn('graphViewport.setAttribute("transform"', script)
-        self.assertIn("setViewportPan(viewportPan.x, viewportPan.y)", script)
+        self.assertIn("updateViewportTransform();", script)
+        self.assertIn('graph.addEventListener("wheel"', script)
+        self.assertIn("pointer.x - (pointer.x - viewportPan.x) * ratio", script)
         self.assertIn("resetViewForNewFocus", script)
         self.assertIn("relationshipMode", script)
         self.assertIn('query.append("pinned", item)', script)
@@ -408,6 +473,9 @@ class ExplorerServerTests(unittest.TestCase):
         self.assertNotIn("? [focusChampion]", script)
         self.assertIn("coverage_count", script)
         self.assertIn("exact_joint_support", script)
+        self.assertIn("candidate.role_feasibility", script)
+        self.assertIn('query.set("hide_role_infeasible", "true")', script)
+        self.assertIn("role-infeasible", styles)
         self.assertIn("co-pick${edge.co_pick_support === 1", script)
         self.assertIn('r: node.visual_radius', script)
         self.assertIn("paint-order: stroke fill", styles)

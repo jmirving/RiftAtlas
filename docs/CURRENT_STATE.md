@@ -106,9 +106,10 @@ five-role team.
 
 Role feasibility is therefore part of the v1 product requirement, but the
 current canonical drafts artifact does not itself contain reliable champion-role
-assignments. The recommendation API accepts an explicit role policy, and the CLI
-can load a caller-supplied champion-to-roles JSON mapping. Neither infers role
-from draft pick order. Without a role source, output says `not_evaluated`.
+assignments. The recommendation API and relationship explorer accept an explicit
+role policy, and the CLI can load a caller-supplied champion-to-roles JSON
+mapping. Neither infers role from draft pick order. Without a role source,
+output says `not_evaluated`.
 
 Flex champions should preserve multiple possible role assignments until the
 partial composition logically narrows them.
@@ -131,8 +132,9 @@ partial composition logically narrows them.
   subset joint support, per-pair graph edges, graph navigation that preserves
   pins, patch-range and multi-select league population filters (including an
   explicit Top regions preset), contextual edge distributions, explicit
-  filtered-versus-total dataset counts, a collapsible filter tray, and a
-  persistent pannable graph viewport
+  filtered-versus-total dataset counts, a collapsible filter tray, a persistent
+  pannable and wheel-zoomable graph viewport, and an optional role-feasibility overlay that keeps
+  relationship evidence independently inspectable
 - GitHub Actions CI for the unit suite
 
 There is no database, graph database, model, embedding system, or production

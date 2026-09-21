@@ -10,6 +10,8 @@ const modeDescription = document.querySelector("#mode-description");
 const orderLegend = document.querySelector("#order-legend");
 const minimumSupportInput = document.querySelector("#minimum-support");
 const supportOutput = document.querySelector("#support-output");
+const hideRoleInfeasibleInput = document.querySelector("#hide-role-infeasible");
+const hideRoleLabel = document.querySelector("#hide-role-label");
 const patchFromInput = document.querySelector("#patch-from");
 const patchToInput = document.querySelector("#patch-to");
 const leagueOptions = document.querySelector("#league-options");
@@ -33,6 +35,7 @@ const edgeLayer = document.querySelector("#edges");
 const nodeLayer = document.querySelector("#nodes");
 const title = document.querySelector("#graph-title");
 const evidencePanel = document.querySelector("#evidence-panel");
+const roleSummaryPanel = document.querySelector("#role-summary");
 const datasetPanel = document.querySelector("#dataset-context");
 
 let focusChampion = "";
@@ -43,20 +46,24 @@ let leagueSelectionInitialized = false;
 let topRegionLeagues = [];
 let searchTimer;
 let viewportPan = { x: 0, y: 0 };
+let viewportZoom = 1;
 let panGesture = null;
 let suppressGraphClick = false;
 const MAX_PINNED_CHAMPIONS = 4;
+const MIN_VIEWPORT_ZOOM = 0.5;
+const MAX_VIEWPORT_ZOOM = 2.5;
 
-function viewportTransform(pan) {
-  return `translate(${pan.x} ${pan.y})`;
+function updateViewportTransform() {
+  graphViewport.setAttribute("transform", `translate(${viewportPan.x} ${viewportPan.y}) scale(${viewportZoom})`);
 }
 
 function setViewportPan(x, y) {
   viewportPan = { x, y };
-  graphViewport.setAttribute("transform", viewportTransform(viewportPan));
+  updateViewportTransform();
 }
 
 function resetViewport() {
+  viewportZoom = 1;
   setViewportPan(0, 0);
 }
 
@@ -91,6 +98,37 @@ function escapeText(value) {
 
 function metric(label, value) {
   return `<div><dt>${escapeText(label)}</dt><dd>${escapeText(value)}</dd></div>`;
+}
+
+function roleStatusLabel(status) {
+  return {
+    feasible: "role-feasible",
+    infeasible: "role-infeasible",
+    unknown: "role unknown",
+    not_evaluated: "role not evaluated",
+  }[status] || "role unknown";
+}
+
+function roleStatusClass(status) {
+  return `role-${String(status || "unknown").replace("not_evaluated", "not-evaluated")}`;
+}
+
+function roleAssignments(feasibility) {
+  if (feasibility.status === "not_evaluated") return "";
+  const rows = Object.entries(feasibility.possible_roles || {})
+    .map(([champion, roles]) => metric(champion, roles.join(" / ") || "None"))
+    .join("");
+  return `<dl class="role-assignments">${rows}</dl>`;
+}
+
+function roleDetail(feasibility, heading) {
+  const status = roleStatusLabel(feasibility.status);
+  return `<section class="role-detail ${roleStatusClass(feasibility.status)}">
+    <h3>${escapeText(heading)}</h3>
+    <p class="role-status"><span aria-hidden="true"></span>${escapeText(status)}</p>
+    ${roleAssignments(feasibility)}
+    ${feasibility.reason ? `<p class="role-reason">${escapeText(feasibility.reason)}</p>` : ""}
+  </section>`;
 }
 
 function distribution(label, items, key) {
@@ -268,11 +306,12 @@ function pinToggle(champion, radius, pinned) {
   return control;
 }
 
-function showNodeEvidence(node, { pinned = false, focused = false } = {}) {
+function showNodeEvidence(node, { pinned = false, focused = false } = {}, roleFeasibility) {
   const role = pinned ? "Pinned champion" : (focused ? "Focused champion" : "Candidate champion");
   evidencePanel.innerHTML = `
     <h2>${escapeText(node.champion)}</h2>
     <p>${role}${pinned && focused ? " and current focus" : ""} in this view.</p>
+    ${roleFeasibility ? roleDetail(roleFeasibility, "Current pinned composition") : ""}
     <dl class="metrics">${metric("Baseline support", `${node.baseline_support} team drafts`)}</dl>
   `;
   const actions = [];
@@ -304,6 +343,7 @@ function showCandidateEvidence(candidate, pinnedCount) {
   evidencePanel.innerHTML = `
     <h2>${escapeText(candidate.champion)}</h2>
     <p>Relationship structure across the full pinned set.</p>
+    ${roleDetail(candidate.role_feasibility, "After adding this candidate")}
     <dl class="metrics">
       ${metric("Coverage", `${candidate.coverage_count}/${pinnedCount}`)}
       ${metric("Exact joint support", `${candidate.exact_joint_support} team drafts`)}
@@ -322,6 +362,26 @@ function showCandidateEvidence(candidate, pinnedCount) {
       disabled: pinnedChampions.length >= MAX_PINNED_CHAMPIONS,
     },
   ]);
+}
+
+function showRoleSummary(data) {
+  const configured = data.role_policy === "configured";
+  hideRoleInfeasibleInput.disabled = !configured;
+  hideRoleLabel.textContent = data.role_infeasible_candidate_count
+    ? `Hide ${data.role_infeasible_candidate_count} role-infeasible`
+    : "Hide role-infeasible";
+  if (!configured) {
+    roleSummaryPanel.innerHTML = `
+      <h2>Not evaluated</h2>
+      <p>Role data is not configured. RiftAtlas does not infer roles from draft pick order.</p>`;
+    return;
+  }
+  const feasibility = data.pinned_role_feasibility;
+  roleSummaryPanel.innerHTML = `
+    <h2>Pinned composition</h2>
+    <p class="role-status ${roleStatusClass(feasibility.status)}"><span aria-hidden="true"></span>${escapeText(roleStatusLabel(feasibility.status))}</p>
+    ${roleAssignments(feasibility)}
+    ${feasibility.reason ? `<p class="role-reason">${escapeText(feasibility.reason)}</p>` : ""}`;
 }
 
 function showDataset(dataset) {
@@ -368,6 +428,7 @@ function renderGraph(data) {
     button.setAttribute("aria-pressed", String(active));
   });
   showDataset(data.dataset);
+  showRoleSummary(data);
   if (data.dataset.team_observations_in_scope === 0 || data.pinned.every((item) => item.baseline_support === 0)) {
     graph.setAttribute("hidden", "");
     emptyState.hidden = false;
@@ -380,7 +441,7 @@ function renderGraph(data) {
   }
   graph.removeAttribute("hidden");
   emptyState.hidden = true;
-  setViewportPan(viewportPan.x, viewportPan.y);
+  updateViewportTransform();
   graph.classList.remove("graph-enter");
   void graph.getBoundingClientRect();
   graph.classList.add("graph-enter");
@@ -469,8 +530,11 @@ function renderGraph(data) {
     const fullCoverage = node.coverage_count === data.pinned.length;
     const focused = node.champion === data.focal.champion;
     const selected = selectedEvidence?.type === "node" && selectedEvidence.champion === node.champion;
-    const group = element("g", { class: `node candidate ${fullCoverage ? "coverage-full" : "coverage-partial"}${focused ? " focused" : ""}${selected ? " selected" : ""}`, transform: `translate(${position.x} ${position.y})` });
-    const nodeAction = element("g", { class: "node-action", tabindex: "0", role: "button", "aria-label": `${node.champion}${focused ? ", current focus" : ""}, coverage ${node.coverage_count} of ${data.pinned.length}, exact joint support ${node.exact_joint_support}` });
+    const roleClass = roleStatusClass(node.role_feasibility.status);
+    const roleLabel = roleStatusLabel(node.role_feasibility.status);
+    const group = element("g", { class: `node candidate ${fullCoverage ? "coverage-full" : "coverage-partial"} ${roleClass}${focused ? " focused" : ""}${selected ? " selected" : ""}`, transform: `translate(${position.x} ${position.y})` });
+    const nodeAction = element("g", { class: "node-action", tabindex: "0", role: "button", "aria-label": `${node.champion}${focused ? ", current focus" : ""}, ${roleLabel}, coverage ${node.coverage_count} of ${data.pinned.length}, exact joint support ${node.exact_joint_support}` });
+    nodeAction.append(element("circle", { r: node.visual_radius + 7, class: "role-halo" }));
     nodeAction.append(element("circle", { r: node.visual_radius, class: "node-body" }));
     const label = element("text", { y: "4" });
     label.textContent = node.champion;
@@ -478,6 +542,9 @@ function renderGraph(data) {
     const support = element("text", { y: "21", class: "support" });
     support.textContent = `played: ${node.baseline_support} · ${node.coverage_count}/${data.pinned.length} · joint ${node.exact_joint_support}`;
     nodeAction.append(support);
+    const roleStatus = element("text", { y: "37", class: "role-node-label" });
+    roleStatus.textContent = roleLabel;
+    nodeAction.append(roleStatus);
     group.append(nodeAction, pinToggle(node.champion, node.visual_radius, false));
     const select = () => {
       document.querySelectorAll(".selected").forEach((item) => item.classList.remove("selected"));
@@ -496,8 +563,12 @@ function renderGraph(data) {
     const position = pinnedPositions[index];
     const radius = Math.min(node.visual_radius, 48);
     const selected = selectedEvidence?.type === "node" && selectedEvidence.champion === node.champion;
-    const group = element("g", { class: `node ${explicitlyPinned ? "pinned" : "anchor"}${focused ? " focal" : ""}${selected ? " selected" : ""}`, transform: `translate(${position.x} ${position.y})` });
-    const nodeAction = element("g", { class: "node-action", tabindex: "0", role: "button", "aria-label": `${node.champion}, ${explicitlyPinned ? "pinned champion" : "current focus"}${explicitlyPinned && focused ? ", current focus" : ""}` });
+    const pinnedRoles = data.pinned_role_feasibility.possible_roles[node.champion] || [];
+    const roleClass = roleStatusClass(data.pinned_role_feasibility.status);
+    const roleLabel = data.role_policy === "configured" ? (pinnedRoles.join(" / ") || roleStatusLabel(data.pinned_role_feasibility.status)) : "role not evaluated";
+    const group = element("g", { class: `node ${explicitlyPinned ? "pinned" : "anchor"} ${roleClass}${focused ? " focal" : ""}${selected ? " selected" : ""}`, transform: `translate(${position.x} ${position.y})` });
+    const nodeAction = element("g", { class: "node-action", tabindex: "0", role: "button", "aria-label": `${node.champion}, ${explicitlyPinned ? "pinned champion" : "current focus"}${explicitlyPinned && focused ? ", current focus" : ""}, ${roleLabel}` });
+    nodeAction.append(element("circle", { r: radius + 7, class: "role-halo" }));
     nodeAction.append(element("circle", { r: radius, class: "node-body" }));
     const label = element("text", { y: "2" });
     label.textContent = node.champion;
@@ -505,12 +576,15 @@ function renderGraph(data) {
     const support = element("text", { y: "22", class: "support" });
     support.textContent = `${explicitlyPinned ? "pinned" : "focus"} · played ${node.baseline_support}`;
     nodeAction.append(support);
+    const roles = element("text", { y: "38", class: "role-node-label" });
+    roles.textContent = roleLabel;
+    nodeAction.append(roles);
     group.append(nodeAction, pinToggle(node.champion, radius, explicitlyPinned));
     const select = () => {
       document.querySelectorAll(".selected").forEach((item) => item.classList.remove("selected"));
       group.classList.add("selected");
       selectedEvidence = { type: "node", champion: node.champion };
-      showNodeEvidence(node, { pinned: explicitlyPinned, focused });
+      showNodeEvidence(node, { pinned: explicitlyPinned, focused }, data.pinned_role_feasibility);
     };
     nodeAction.addEventListener("click", select);
     nodeAction.addEventListener("keydown", (event) => { if (event.key === "Enter" || event.key === " ") select(); });
@@ -523,7 +597,7 @@ function renderGraph(data) {
       showNodeEvidence(selectedPinned, {
         pinned: pinnedChampions.includes(selectedPinned.champion),
         focused: selectedPinned.champion === data.focal.champion,
-      });
+      }, data.pinned_role_feasibility);
       return;
     }
     if (selectedCandidate) {
@@ -534,7 +608,7 @@ function renderGraph(data) {
   if (selectedEvidence?.type === "edge" && selectedEdgeRendered) return;
   if (selectedEvidence?.type === "edge") selectedEvidence = null;
   const focusedPinned = data.pinned.find((node) => node.champion === data.focal.champion);
-  if (focusedPinned) showNodeEvidence(focusedPinned, { pinned: pinnedChampions.includes(focusedPinned.champion), focused: true });
+  if (focusedPinned) showNodeEvidence(focusedPinned, { pinned: pinnedChampions.includes(focusedPinned.champion), focused: true }, data.pinned_role_feasibility);
   else {
     const focusedCandidate = data.neighbors.find((node) => node.champion === data.focal.champion);
     if (focusedCandidate) showCandidateEvidence(focusedCandidate, data.pinned.length);
@@ -559,6 +633,7 @@ async function loadGraph(champion, { resetViewForNewFocus = false } = {}) {
       if (leagues.length === 0) query.append("league", "");
       leagues.forEach((league) => query.append("league", league));
     }
+    if (hideRoleInfeasibleInput.checked) query.set("hide_role_infeasible", "true");
     const data = await fetchJson(`/api/graph?${query}`);
     if (resetViewForNewFocus && data.focal.champion !== focusChampion) resetViewport();
     focusChampion = data.focal.champion;
@@ -582,6 +657,7 @@ limitInput.addEventListener("input", () => { limitOutput.value = limitInput.valu
 limitInput.addEventListener("change", () => { if (focusChampion) loadGraph(focusChampion); });
 minimumSupportInput.addEventListener("input", () => { supportOutput.value = minimumSupportInput.value; });
 minimumSupportInput.addEventListener("change", () => { if (focusChampion) loadGraph(focusChampion); });
+hideRoleInfeasibleInput.addEventListener("change", () => { if (focusChampion) loadGraph(focusChampion); });
 [patchFromInput, patchToInput].forEach((input) => {
   input.addEventListener("change", () => { if (focusChampion) loadGraph(focusChampion); });
 });
@@ -637,6 +713,25 @@ filterToggle.addEventListener("click", () => {
   contextFilters.hidden = expanded;
 });
 resetViewButton.addEventListener("click", resetViewport);
+graph.addEventListener("wheel", (event) => {
+  event.preventDefault();
+  if (panGesture) return;
+  const matrix = graph.getScreenCTM();
+  if (!matrix) return;
+  const point = graph.createSVGPoint();
+  point.x = event.clientX;
+  point.y = event.clientY;
+  const pointer = point.matrixTransform(matrix.inverse());
+  const delta = event.deltaY * (event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? graph.clientHeight : 1);
+  const nextZoom = Math.min(MAX_VIEWPORT_ZOOM, Math.max(MIN_VIEWPORT_ZOOM, viewportZoom * Math.exp(-delta * 0.001)));
+  const ratio = nextZoom / viewportZoom;
+  viewportPan = {
+    x: pointer.x - (pointer.x - viewportPan.x) * ratio,
+    y: pointer.y - (pointer.y - viewportPan.y) * ratio,
+  };
+  viewportZoom = nextZoom;
+  updateViewportTransform();
+}, { passive: false });
 clearPinsButton.addEventListener("click", () => {
   pinnedChampions = [];
   refreshPinnedChampions();

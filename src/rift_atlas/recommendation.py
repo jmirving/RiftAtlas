@@ -75,22 +75,44 @@ class MappingRolePolicy:
                 reason="No supplied role data for: " + ", ".join(sorted(missing)),
             )
 
-        # Bipartite matching preserves flex options until the full set constrains them.
-        ordered = sorted(champions, key=lambda champion: (len(possibilities[champion]), champion))
-
-        def can_assign(index: int, used: frozenset[str]) -> bool:
-            if index == len(ordered):
+        # A reported role must participate in at least one complete matching for
+        # this composition. This preserves genuine flex without advertising a
+        # role that another champion has made impossible.
+        def can_assign(remaining: Sequence[str], used: frozenset[str]) -> bool:
+            if not remaining:
                 return True
+            ordered = sorted(
+                remaining,
+                key=lambda champion: (len(possibilities[champion]), champion),
+            )
+            champion = ordered[0]
+            rest = ordered[1:]
             return any(
-                role not in used and can_assign(index + 1, used | {role})
-                for role in possibilities[ordered[index]]
+                role not in used and can_assign(rest, used | {role})
+                for role in possibilities[champion]
             )
 
-        feasible = len(champions) <= len(self.required_roles) and can_assign(0, frozenset())
+        feasible = len(champions) <= len(self.required_roles) and can_assign(
+            champions, frozenset()
+        )
+        if feasible:
+            constrained = {
+                champion: tuple(
+                    role
+                    for role in possibilities[champion]
+                    if can_assign(
+                        tuple(other for other in champions if other != champion),
+                        frozenset((role,)),
+                    )
+                )
+                for champion in champions
+            }
+        else:
+            constrained = {champion: () for champion in champions}
         return RoleFeasibility(
             status="feasible" if feasible else "infeasible",
             feasible=feasible,
-            possible_roles=possibilities,
+            possible_roles=constrained,
             reason=None if feasible else "No distinct required-role assignment exists.",
         )
 

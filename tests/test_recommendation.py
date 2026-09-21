@@ -7,6 +7,7 @@ import tempfile
 import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
+from unittest.mock import patch
 
 from rift_atlas.cli import main
 from rift_atlas.contracts import REQUIRED_DRAFT_COLUMNS
@@ -184,7 +185,7 @@ class RecommendationTests(unittest.TestCase):
         ]
         self.assertEqual(names, repeated_names)
 
-    def test_role_policy_preserves_flex_and_rejects_impossible_candidates(self) -> None:
+    def test_role_policy_constrains_flex_and_rejects_impossible_candidates(self) -> None:
         index = RecommendationIndex(
             [
                 record(1, ("Top", "Jungle", "Bottom", "Flex", "Support")),
@@ -209,12 +210,42 @@ class RecommendationTests(unittest.TestCase):
         self.assertNotIn("MidOnly", names)
         flex = candidate(result, "Support")["role_feasibility"]
         self.assertEqual("feasible", flex["status"])
-        self.assertEqual(["mid", "bottom"], flex["possible_roles"]["Flex"])
+        self.assertEqual(["mid"], flex["possible_roles"]["Flex"])
 
         flagged = index.recommend(
             locked, role_policy=policy, include_infeasible=True
         )
-        self.assertEqual("infeasible", candidate(flagged, "MidOnly")["role_feasibility"]["status"])
+        infeasible = candidate(flagged, "MidOnly")["role_feasibility"]
+        self.assertEqual("infeasible", infeasible["status"])
+        self.assertTrue(
+            all(not roles for roles in infeasible["possible_roles"].values())
+        )
+
+    def test_role_policy_preserves_roles_supported_by_multiple_assignments(self) -> None:
+        policy = MappingRolePolicy(
+            {
+                "FlexA": ["top", "mid"],
+                "FlexB": ["top", "mid"],
+                "Jungle": ["jungle"],
+            }
+        )
+
+        result = policy.evaluate(["FlexA", "FlexB", "Jungle"])
+
+        self.assertEqual("feasible", result.status)
+        self.assertEqual(("top", "mid"), result.possible_roles["FlexA"])
+        self.assertEqual(("top", "mid"), result.possible_roles["FlexB"])
+
+    def test_role_policy_keeps_unknown_explicit_when_data_is_incomplete(self) -> None:
+        policy = MappingRolePolicy({"Flex": ["top", "mid"]})
+
+        result = policy.evaluate(["Flex", "Missing"])
+
+        self.assertEqual("unknown", result.status)
+        self.assertIsNone(result.feasible)
+        self.assertEqual(("top", "mid"), result.possible_roles["Flex"])
+        self.assertEqual((), result.possible_roles["Missing"])
+        self.assertEqual("No supplied role data for: Missing", result.reason)
 
     def test_cli_emits_machine_readable_json(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -256,6 +287,32 @@ class RecommendationTests(unittest.TestCase):
             self.assertEqual("2", payload["schema_version"])
             self.assertEqual(["A"], payload["locked_champions"])
             self.assertEqual(1, len(payload["candidates"]))
+
+    def test_explore_cli_builds_role_policy_for_graph_overlay(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            role_path = Path(directory) / "roles.json"
+            role_path.write_text('{"Flex":["top","mid"]}', encoding="utf-8")
+            with (
+                patch("rift_atlas.cli.read_drafts", return_value=[]) as read_drafts,
+                patch("rift_atlas.cli.serve_explorer") as serve_explorer,
+            ):
+                exit_code = main(
+                    [
+                        "explore",
+                        "--input",
+                        "drafts.csv",
+                        "--role-data",
+                        str(role_path),
+                        "--no-open",
+                    ]
+                )
+
+            self.assertEqual(0, exit_code)
+            read_drafts.assert_called_once_with("drafts.csv")
+            role_policy = serve_explorer.call_args.kwargs["role_policy"]
+            feasibility = role_policy.evaluate(["Flex"])
+            self.assertEqual(("top", "mid"), feasibility.possible_roles["Flex"])
+            self.assertTrue(serve_explorer.call_args.kwargs["role_context_loaded"])
 
 
 if __name__ == "__main__":

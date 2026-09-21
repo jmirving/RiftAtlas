@@ -73,6 +73,9 @@ Explore the observed allied co-pick graph in a lightweight local UI:
 
 `rift-atlas explore --input path/to/drafts.csv`
 
+Add `--role-data path/to/roles.json` to overlay composition-constrained role
+possibilities from an explicit champion-to-roles mapping.
+
 The command opens `http://127.0.0.1:8765/` by default (use `--no-open` to only
 print the URL). Search for a champion, pin up to four allied champions, and
 inspect candidates connected to all or part of that set. Selecting a candidate
@@ -85,6 +88,14 @@ large support differences remain visible without letting common champions
 dominate the graph. The visible legend documents these encodings, and the UI
 describes co-picks as observations rather than recommendations or claims of
 synergy.
+
+With role data configured, the explorer lists every pinned champion's remaining
+roles and marks each candidate as role-feasible, role-infeasible, or role
+unknown after adding it to the pinned composition. Role-infeasible candidates
+remain visible by default so their relationship evidence can still be inspected;
+the **Hide role-infeasible** control optionally removes them. Without role data,
+the UI explicitly reports that feasibility was not evaluated and never infers a
+role from pick order.
 
 The explorer offers three deterministic relationship views over the same edge
 evidence. All prioritize coverage across the pinned set before their named
@@ -107,9 +118,10 @@ score.
 
 The primary relationship controls and active filter summary stay visible while
 the detailed patch/league tray collapses to return space to the graph. Dragging
-empty graph space pans the shared node-and-edge viewport; Reset view restores
-its centered position. Query-driven graph refreshes preserve that pan position,
-including when following a connected champion.
+empty graph space pans the shared node-and-edge viewport. The mouse wheel zooms
+around the pointer from 0.5× to 2.5×; Reset view restores the center and 1× zoom.
+Query-driven graph refreshes preserve pan and zoom, including when following a
+connected champion.
 
 The JSON result reports candidate and locked-champion sample counts, pairwise
 co-pick support, popularity-normalized lift, confidence-adjusted lift, coverage,
@@ -118,6 +130,10 @@ named any-pair union context, exact-joint context, and every ranking component.
 The union fields do not imply that the entire partial team appeared in each
 listed context. Role feasibility is explicitly `not_evaluated` unless `--role-data`
 points to caller-supplied JSON such as `{"Maokai":["jungle","support"]}`.
+When role data is configured, each champion's reported possibilities include
+only roles that occur in at least one valid distinct-role assignment for the
+whole evaluated composition; genuine flex is preserved until the other picks
+force it narrower.
 
 See `docs/CURRENT_STATE.md` for the present architecture,
 `docs/V1_PRODUCT.md` for the first product milestone, and

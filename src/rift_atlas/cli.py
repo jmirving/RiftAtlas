@@ -53,7 +53,7 @@ def build_parser() -> argparse.ArgumentParser:
     explore.add_argument("--input", required=True, help="Canonical drafts CSV.")
     explore.add_argument(
         "--role-data",
-        help="Optional role/context JSON; its presence is reported as dataset context.",
+        help="Optional JSON mapping champions to roles for graph feasibility overlays.",
     )
     explore.add_argument("--host", default="127.0.0.1")
     explore.add_argument("--port", type=int, default=8765)
@@ -93,15 +93,18 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 0
 
     if args.command == "explore":
+        role_policy = None
         if args.role_data:
             with open(args.role_data, encoding="utf-8") as handle:
                 role_data = json.load(handle)
             if not isinstance(role_data, dict):
                 raise ValueError("Role data must be a JSON object mapping champions to roles.")
+            role_policy = MappingRolePolicy(role_data)
         serve_explorer(
             read_drafts(args.input),
             input_path=args.input,
             role_context_loaded=bool(args.role_data),
+            role_policy=role_policy,
             host=args.host,
             port=args.port,
             open_browser=not args.no_open,

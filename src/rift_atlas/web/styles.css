@@ -8,6 +8,9 @@
   --accent: #e9aa43;
   --accent-soft: #8b622d;
   --green: #9ab79b;
+  --role-feasible: #9fc6a3;
+  --role-infeasible: #e08070;
+  --role-unknown: #a9aeb5;
 }
 
 * { box-sizing: border-box; }
@@ -124,6 +127,13 @@ main { display: grid; grid-template-columns: minmax(0, 1fr) 340px; height: calc(
 .support-control output { float: right; color: var(--ink); font-variant-numeric: tabular-nums; }
 .support-control input { display: block; width: 100%; accent-color: var(--accent); }
 .support-control { flex: 0 1 175px; min-width: 145px; }
+.role-filter {
+  align-self: end; min-height: 34px; display: inline-flex; align-items: center; gap: 7px;
+  padding: 0 10px; border: 1px solid #3a3e35; color: #c7c6c0; background: #0d0f0c;
+  cursor: pointer; font-size: 10px; text-transform: uppercase; letter-spacing: .05em;
+}
+.role-filter input { margin: 0; accent-color: var(--role-infeasible); }
+.role-filter:has(input:disabled) { opacity: .42; cursor: not-allowed; }
 .mode-description { margin: 8px 0 0; color: #b7b8b3; font-size: 10px; line-height: 1.4; }
 .toolbar-button {
   min-height: 34px; padding: 0 11px; border: 1px solid #3a3e35;
@@ -184,6 +194,7 @@ h1 { margin: 0; font-size: clamp(20px, 2.3vw, 34px); font-weight: 570; letter-sp
 .edge-width-key { height: 5px; }
 .edge-opacity-key { opacity: .42; }
 .node-key { width: 11px; height: 11px; border-radius: 50%; background: var(--green); }
+.role-infeasible-key { background: transparent; border: 2px solid var(--role-infeasible); }
 
 .graph-stage { position: relative; z-index: 1; min-width: 0; min-height: 0; overflow: hidden; }
 #graph { display: block; width: 100%; height: 100%; cursor: grab; touch-action: none; user-select: none; }
@@ -210,6 +221,13 @@ h1 { margin: 0; font-size: clamp(20px, 2.3vw, 34px); font-weight: 570; letter-sp
 .node.pinned .node-body { fill: #302717; stroke: var(--accent); stroke-width: 3; }
 .node.focal .node-body { fill: var(--accent); stroke: #f6d394; stroke-width: 3; }
 .node.selected .node-body { stroke: var(--ink); stroke-width: 3; }
+.node .role-halo { fill: none; stroke: transparent; pointer-events: none; }
+.node.role-infeasible .role-halo {
+  stroke: var(--role-infeasible); stroke-width: 3; stroke-dasharray: 6 4;
+}
+.node.role-unknown .role-halo {
+  stroke: var(--role-unknown); stroke-width: 1.5; stroke-dasharray: 2 5; opacity: .72;
+}
 .node text {
   fill: var(--ink); font-weight: 650; font-size: 15px; text-anchor: middle; pointer-events: none;
   paint-order: stroke fill; stroke: #111310; stroke-width: 6px; stroke-linejoin: round;
@@ -218,6 +236,12 @@ h1 { margin: 0; font-size: clamp(20px, 2.3vw, 34px); font-weight: 570; letter-sp
 .node .support { fill: var(--muted); font-size: 10px; font-weight: 500; }
 .node.focal .support { fill: #ffe0a6; }
 .node.pinned:not(.focal) .support { fill: #d9bd8d; }
+.node .role-node-label {
+  fill: var(--role-feasible); font-size: 9px; font-weight: 650; letter-spacing: .02em;
+}
+.node.role-infeasible .role-node-label { fill: #f0a092; }
+.node.role-unknown .role-node-label { fill: #c4c7cc; }
+.node.role-not-evaluated .role-node-label { display: none; }
 .node-pin-toggle { cursor: pointer; opacity: 0; transition: opacity .15s ease, transform .15s ease; }
 .node:hover .node-pin-toggle, .node:focus .node-pin-toggle, .node:focus-within .node-pin-toggle,
 .node-pin-toggle.active, .node-pin-toggle.limit-reached { opacity: 1; }
@@ -258,6 +282,22 @@ dd { margin: 0; color: var(--ink); font: 550 12px/1.45 ui-monospace, SFMono-Regu
 .context-list { margin-top: 16px; }
 .context-list strong { display: block; margin-bottom: 5px; color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: .08em; }
 .context-list span { color: var(--ink); font-size: 12px; line-height: 1.6; }
+.roles h2 { margin-top: 14px; }
+.role-detail { margin: 18px 0 4px; padding: 12px 0; border-block: 1px solid var(--line); }
+.role-detail h3 {
+  margin: 0 0 8px; color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: .08em;
+}
+.role-status { display: flex; align-items: center; gap: 7px; margin: 0; color: var(--ink) !important; font-weight: 650; }
+.role-status span { width: 8px; height: 8px; border-radius: 50%; background: var(--role-unknown); }
+.role-status.role-feasible span, .role-feasible .role-status span { background: var(--role-feasible); }
+.role-status.role-infeasible span, .role-infeasible .role-status span {
+  background: var(--role-infeasible); box-shadow: 0 0 0 3px #e0807020;
+}
+.role-status.role-unknown span, .role-unknown .role-status span { background: var(--role-unknown); }
+.role-assignments { margin-top: 12px; }
+.role-assignments div { padding: 7px 0; }
+.role-assignments dd { color: #d8dbcF; }
+.role-reason { margin: 10px 0 0 !important; color: var(--muted) !important; font-size: 11px !important; }
 .distribution { margin-top: 22px; }
 .distribution h3 {
   margin: 0 0 8px; color: var(--muted); font-size: 10px; font-weight: 650;
@@ -307,6 +347,7 @@ dd { margin: 0; color: var(--ink); font: 550 12px/1.45 ui-monospace, SFMono-Regu
   .support-control label { margin: 0; }
   .filter-summary { flex-basis: 100%; order: 3; margin: 0; }
   .filter-toggle, #reset-view { order: 4; }
+  .role-filter { flex: 1 1 100%; justify-content: center; }
   .context-filters { grid-template-columns: 1fr 1fr; }
   .clear-filters { grid-column: auto; }
   .workspace { height: 92vh; min-height: 820px; }
