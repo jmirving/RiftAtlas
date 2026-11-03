@@ -1,8 +1,10 @@
 # DPS standalone service execution
 
 Status, November 3, 2026: implementation and real-snapshot local acceptance
-complete on `feat/dps-standalone-service`; Hosted QA is intentionally omitted; production cost approval and deployed
-acceptance remain pending. No merge, production deployment, or Render mutation occurred.
+complete on `feat/dps-standalone-service`. Hosted QA is intentionally omitted.
+The user-approved new Starter production service is live; public HTTP/browser
+acceptance remains blocked from this executor. No merge or changes to existing
+Render services occurred. See [deployment evidence](RENDER_DEPLOYMENT.md).
 
 ## Scope and implementation
 
@@ -81,18 +83,17 @@ the default; no standing QA service or automatic preview is proposed. Existing
 services remain untouched. Full preview environments and workspace upgrades
 are not needed.
 
-The concrete production proposal is a new `dps` service on `0.5c-512mb` at
+The new production `dps` service runs on `0.5c-512mb` at
 US $7/month base compute, one worker/instance, bundled data, and manual deploys
-from `feat/dps-standalone-service`. Paid creation awaits explicit cost approval.
+from `feat/dps-standalone-service`. Creation was explicitly approved and the first deploy is live.
 Build and bandwidth overages remain separate; no total bill cap is implied.
 See [deployment instructions](DEPLOYMENT.md) for the exact configuration,
 pricing sources, and connector limitations.
 
 CI succeeded for code/data revision
 `2476d82296ebcfb238a9a9fe3f95e14d0f1b19cf` on both push and PR runs. Remaining:
-production creation after approval, live-deploy/source verification, real-data
-browser/direct API comparison, restart recovery, deployed concurrency checks,
+real-data browser/direct API comparison, restart recovery, deployed concurrency checks,
 and final approval before any merge or source switch to main. Paid instances
 do not have the free plan's idle cold-start behavior; measure startup/restart
 instead. Issues #2 and #9 still need acceptance reconciliation; no closure is
-claimed. No Render resource has been created or modified.
+claimed. Only the new DPS service was created; existing resources were unchanged.

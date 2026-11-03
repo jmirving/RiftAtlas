@@ -2,8 +2,9 @@
 
 A validated real processor-produced snapshot is bundled in `data/`; see
 [data provenance](../data/README.md). Local real-data acceptance has passed.
-Render QA provisioning and deployed acceptance remain pending; no Render
-resource was created or modified. See [DPS_EXECUTION.md](DPS_EXECUTION.md).
+A new Starter production service is live from the feature branch. Public
+endpoint/browser acceptance remains pending; existing services were unchanged.
+See the [deployment record](RENDER_DEPLOYMENT.md). See [DPS_EXECUTION.md](DPS_EXECUTION.md).
 
 ## Install and run
 
@@ -78,7 +79,7 @@ in 1.872 s (123.6 ms median, 293.4 ms maximum). These are local measurements,
 not a Render capacity guarantee or two-browser acceptance. Deployed cold-start,
 restart, and simultaneous browser-user checks remain required.
 
-## Sustainable QA and production proposal
+## Sustainable QA and production configuration
 
 Updated November 3, 2026 after the user rejected a QA plan that consumes the
 shared free-instance allowance. Do not create a standing `dps-qa` service.
@@ -98,12 +99,13 @@ PR previews bill at the base service rate, prorated by the second. With no
 verified workspace usage or automated teardown capability in the current
 connector, no hosted preview is proposed for this launch.
 
-Instead, prepare one **new production service**, subject to cost approval:
+The user approved the $7/month service after confirming Clairvoyance uses
+the same Web Service kind and Starter compute plan. One new service was created:
 
 | Setting | Proposed value |
 | --- | --- |
 | Workspace | Joseph's Workspace |
-| Service name | `dps` (availability checked at creation) |
+| Service name | `dps` — https://dps-9bkr.onrender.com |
 | Repository | `https://github.com/jmirving/RiftAtlas` |
 | Branch until final approval | `feat/dps-standalone-service` |
 | Runtime / region | Python 3.12.14 / Oregon |
@@ -115,8 +117,8 @@ Instead, prepare one **new production service**, subject to cost approval:
 | HTTP health target | `/healthz` |
 | Data / dependencies | Bundled immutable snapshot; no database, disk, env group, or production credentials |
 
-This is a proposal, not authorization to spend or evidence that a service
-exists. Paid compute avoids the shared 750 free-instance-hour pool and idle
+Creation and live-deploy readback are recorded in [RENDER_DEPLOYMENT.md](RENDER_DEPLOYMENT.md).
+Paid compute avoids the shared 750 free-instance-hour pool and idle
 spindown. The local 101.16 MiB peak supports evaluating 512 MB, but CPU capacity,
 platform overhead, and actual production behavior still require deployed checks.
 
@@ -126,7 +128,7 @@ workspace allowance costs **$0.15/GB**. Pipeline overage pricing depends on the
 workspace tier and must be checked in its Dashboard; the connector cannot read
 remaining allowances, build-tier pricing, or spending controls. Do not change
 workspace settings or existing services to make room. No workspace upgrade,
-second instance, database, disk, or paid preview is included in this proposal.
+second instance, database, disk, or paid preview was created or enabled.
 
 The creation connector supports this plan and feature branch but cannot set
 HTTP health-check path, checks-pass auto-deployment, or PR preview settings.
@@ -136,10 +138,10 @@ with separate direct HTTP readiness verification. Uvicorn completes startup
 validation before accepting traffic. Do not claim HTTP monitoring is configured
 unless readback confirms it.
 
-After cost approval, create only the new service, record its service/deploy IDs,
-verify the deployed commit and live status, then test health, metadata, direct
-API/browser equivalence, restart recovery, and two concurrent clients. Keep
-main and all existing Render resources unchanged. Final approval is still
+The new service is live on the recorded CI-green commit. Direct health, metadata,
+API/browser equivalence, restart recovery, and concurrent-client verification
+remain pending because this executor cannot access its public URL. Keep main
+and all pre-existing Render resources unchanged. Final approval is still
 required before merging or switching the production source to main.
 
 Pricing references: [compute](https://render.com/pricing),
