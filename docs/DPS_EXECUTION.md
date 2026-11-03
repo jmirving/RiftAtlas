@@ -1,8 +1,8 @@
 # DPS standalone service execution
 
 Status, November 3, 2026: implementation and real-snapshot local acceptance
-complete on `feat/dps-standalone-service`; Render QA and deployed acceptance
-remain pending. No merge, production deployment, or Render mutation occurred.
+complete on `feat/dps-standalone-service`; Hosted QA is intentionally omitted; production cost approval and deployed
+acceptance remain pending. No merge, production deployment, or Render mutation occurred.
 
 ## Scope and implementation
 
@@ -71,25 +71,28 @@ on WSL, Python 3.12.3, with the installed package. This differs from the
 
 Each warm scenario has one warmup and five measured requests. Concurrent clients
 start together and make ten sequential requests each. These measurements support
-trying free QA compute; they do not establish Render performance or deployed
+evaluating a small production instance; they do not establish Render performance or deployed
 two-browser behavior. No caching or database is justified by this baseline.
 
 ## Remaining QA and approval gates
 
-Create only a **new** free `dps-qa` Python service in Joseph's Workspace, linked
-to `feat/dps-standalone-service`, after CI passes and shared allowances are
-checked. Existing services, env groups, credentials, disks, and databases must
-remain untouched. Use one worker, bundled data, and `/healthz`; see
-[deployment instructions](DEPLOYMENT.md) for build/start commands.
+The user rejected consuming shared free credits for hosted QA. Local/CI QA is
+the default; no standing QA service or automatic preview is proposed. Existing
+services remain untouched. Full preview environments and workspace upgrades
+are not needed.
 
-Service previews apply to PRs targeting the service's linked branch. Use the
-branch-linked QA URL for initial review; child PRs can target this branch for
-previews. Full preview environments require Pro and are not proposed. Free
-services sleep after inactivity and share workspace instance hours, build,
-and bandwidth allowances; no always-on availability promise or paid upgrade.
+The concrete production proposal is a new `dps` service on `0.5c-512mb` at
+US $7/month base compute, one worker/instance, bundled data, and manual deploys
+from `feat/dps-standalone-service`. Paid creation awaits explicit cost approval.
+Build and bandwidth overages remain separate; no total bill cap is implied.
+See [deployment instructions](DEPLOYMENT.md) for the exact configuration,
+pricing sources, and connector limitations.
 
-Still required: CI on the pushed revision, QA provisioning, real-data browser
-and direct API comparison, deployed cold-start/restart checks, two simultaneous
-browser users on the deployment, and final approval. Issues #2 and #9 should
-be reconciled against existing role tests and browser acceptance; no ticket
-closure is claimed here.
+CI succeeded for code/data revision
+`2476d82296ebcfb238a9a9fe3f95e14d0f1b19cf` on both push and PR runs. Remaining:
+production creation after approval, live-deploy/source verification, real-data
+browser/direct API comparison, restart recovery, deployed concurrency checks,
+and final approval before any merge or source switch to main. Paid instances
+do not have the free plan's idle cold-start behavior; measure startup/restart
+instead. Issues #2 and #9 still need acceptance reconciliation; no closure is
+claimed. No Render resource has been created or modified.

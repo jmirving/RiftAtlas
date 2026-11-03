@@ -78,27 +78,80 @@ in 1.872 s (123.6 ms median, 293.4 ms maximum). These are local measurements,
 not a Render capacity guarantee or two-browser acceptance. Deployed cold-start,
 restart, and simultaneous browser-user checks remain required.
 
-## Future QA provisioning
+## Sustainable QA and production proposal
 
-Create only a new `dps-qa` free Python web service in Joseph's Workspace, linked
-to `feat/dps-standalone-service`, after the real data and resource gates pass.
-Build: `pip install -r requirements-web.lock && pip install --no-deps . && python -m rift_atlas.dataset`.
-Start: `uvicorn rift_atlas.api:app --host 0.0.0.0 --port "$PORT" --workers 1`.
-Health path: `/healthz`. Pin the Python runtime; deploy after checks pass.
-No production credentials, existing env groups, disks, or databases are needed.
-Do not deploy main or modify existing Render services before final approval.
+Updated November 3, 2026 after the user rejected a QA plan that consumes the
+shared free-instance allowance. Do not create a standing `dps-qa` service.
 
-Single-service PR previews can be free. A branch-linked QA service previews PRs
-targeting that branch; its own code can be reviewed directly on the QA URL.
-Full Blueprint preview environments require Pro. Check shared free hours,
-build-minute/bandwidth allowances, and possible overages before any provisioning.
-No paid compute or workspace upgrade is authorized without cost disclosure.
+QA uses the existing local and GitHub Actions checks: the dependency-free core,
+installed-wheel API/real-snapshot contract checks, Chromium smoke, and local
+resource/concurrency measurements. These incur no Render instance hours or
+Render builds. GitHub Actions remains subject to its own account allowance.
+Run local manual browser review against the bundled real data before each
+release; CI's automated browser flow uses explicitly marked synthetic data.
+
+Hosted previews are off by default. Do not enable automatic preview creation.
+A temporary preview is optional only for a specific review that cannot be done
+locally, with an approved lifetime/budget and an explicit teardown owner.
+Free previews still use shared free hours and build/bandwidth allowances; paid
+PR previews bill at the base service rate, prorated by the second. With no
+verified workspace usage or automated teardown capability in the current
+connector, no hosted preview is proposed for this launch.
+
+Instead, prepare one **new production service**, subject to cost approval:
+
+| Setting | Proposed value |
+| --- | --- |
+| Workspace | Joseph's Workspace |
+| Service name | `dps` (availability checked at creation) |
+| Repository | `https://github.com/jmirving/RiftAtlas` |
+| Branch until final approval | `feat/dps-standalone-service` |
+| Runtime / region | Python 3.12.14 / Oregon |
+| Compute | `0.5c-512mb` (legacy `starter`), one instance, 512 MB, 0.5 CPU |
+| Base compute price | **US $7/month**, verified November 3, 2026 |
+| Automatic deploys / previews | Off; deliberately deploy an approved, CI-green revision |
+| Build | `pip install -r requirements-web.lock && pip install --no-deps . && python -m rift_atlas.dataset` |
+| Start | `uvicorn rift_atlas.api:app --host 0.0.0.0 --port "$PORT" --workers 1` |
+| HTTP health target | `/healthz` |
+| Data / dependencies | Bundled immutable snapshot; no database, disk, env group, or production credentials |
+
+This is a proposal, not authorization to spend or evidence that a service
+exists. Paid compute avoids the shared 750 free-instance-hour pool and idle
+spindown. The local 101.16 MiB peak supports evaluating 512 MB, but CPU capacity,
+platform overhead, and actual production behavior still require deployed checks.
+
+The $7 price is **compute only**, not a total bill cap. Build minutes and outbound
+bandwidth remain shared workspace usage. Public-internet bandwidth beyond the
+workspace allowance costs **$0.15/GB**. Pipeline overage pricing depends on the
+workspace tier and must be checked in its Dashboard; the connector cannot read
+remaining allowances, build-tier pricing, or spending controls. Do not change
+workspace settings or existing services to make room. No workspace upgrade,
+second instance, database, disk, or paid preview is included in this proposal.
+
+The creation connector supports this plan and feature branch but cannot set
+HTTP health-check path, checks-pass auto-deployment, or PR preview settings.
+Keep auto-deploy disabled. Configure `/healthz` on the new service via Dashboard
+when available; until then the connector-created service uses TCP readiness,
+with separate direct HTTP readiness verification. Uvicorn completes startup
+validation before accepting traffic. Do not claim HTTP monitoring is configured
+unless readback confirms it.
+
+After cost approval, create only the new service, record its service/deploy IDs,
+verify the deployed commit and live status, then test health, metadata, direct
+API/browser equivalence, restart recovery, and two concurrent clients. Keep
+main and all existing Render resources unchanged. Final approval is still
+required before merging or switching the production source to main.
+
+Pricing references: [compute](https://render.com/pricing),
+[preview billing](https://render.com/docs/service-previews),
+[outbound bandwidth](https://render.com/docs/outbound-bandwidth),
+[build pipeline](https://render.com/docs/build-pipeline).
 
 ## Refresh and rollback
 
 Produce a new canonical artifact upstream. Update the CSV and manifest together,
 verify attribution, run `python -m rift_atlas.dataset`, run all tests and the real
-snapshot checks, and review the feature-branch QA before approval. Never infer
+snapshot checks, and review the feature-branch results before approval. Never infer
 roles from pick order. Do not modify data at runtime.
 
 The committed code/data pair is the rollback unit once real data is bundled.
