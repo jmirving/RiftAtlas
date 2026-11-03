@@ -1,4 +1,10 @@
-# RiftAtlas
+# DPS — Draft Positioning System
+
+Explore how your draft connects. The standalone DPS service and versioned API
+are being prepared on a feature branch; real-snapshot verification and Render
+publication are still pending. See [API](docs/API.md),
+[setup and QA](docs/DEPLOYMENT.md), and [execution status](docs/DPS_EXECUTION.md).
+The internal package and CLI remain `rift_atlas` / `rift-atlas`.
 
 RiftAtlas is a League of Legends draft-relationship evidence layer.
 
@@ -54,11 +60,15 @@ DraftSage and does not require changes to DraftSage's legacy data inputs.
 
 ## Development
 
-Requires Python 3.12+ and has no runtime third-party dependencies.
+Requires Python 3.12+. CLI/library use has no runtime third-party dependencies;
+the standalone HTTP service uses the optional `web` extra.
 
 Install locally with `python -m pip install -e .`.
 
-Run tests with `python -m unittest discover -s tests -v`.
+Install `requirements-test.lock`, then run all tests with
+`python -m unittest discover -s tests -v`. See the deployment guide for the
+optional automated browser smoke flow. Synthetic test fixtures never serve as
+production snapshot defaults.
 
 Build relationships with:
 

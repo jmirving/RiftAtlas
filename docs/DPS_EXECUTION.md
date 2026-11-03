@@ -1,6 +1,7 @@
 # DPS standalone service execution
 
-Status: blocked at the real-snapshot gate, November 3, 2026.
+Status: independent service implementation ready for draft review; real-snapshot
+validation and deployment blocked, November 3, 2026.
 
 ## Scope and baseline
 
@@ -8,7 +9,9 @@ Implementation follows `DPS-Standalone-Web-Service-Plan.md`, Library file
 `libfile_8e7ba89c2b188191bef3bdce69e2a72b`. The entire 186-line plan was read
 through Library. Its required local materialization failed with
 `library file transfer failed: download failed`; a readable local copy has not
-been verified. Restore that transfer before implementation resumes.
+been verified. Follow-up authorization explicitly permits implementation from
+the complete Library read and test-only fixtures, without treating the missing
+snapshot as a blocker to independent API/frontend work.
 
 The isolated branch is `feat/dps-standalone-service`, based on current main
 `6a441fca999225f0e2c1af1eaddc81971156e3ec`. Only feature branches are authorized
@@ -51,22 +54,42 @@ Checks completed:
   `403 Forbidden` from the execution environment's CONNECT proxy. This is an
   access blocker, not evidence that the source dataset is empty.
 
-No snapshot or provenance manifest was fabricated. Real-data load time, peak
-memory, and query timings remain unmeasured. No API, frontend, or deployment
-implementation has been represented as complete.
+No production snapshot or provenance manifest was fabricated. Real-data load
+time, peak memory, and query timings remain unmeasured.
+
+## Independent implementation completed
+
+- Extracted the existing query calculations intact into `relationships.py`;
+  kept the legacy explorer import and CLI working.
+- Added startup validation for schema/checksum/coverage/provenance and optional
+  role mappings, with immutable per-process index initialization and no fallback.
+- Added FastAPI/Uvicorn service, readiness, three versioned read-only endpoints,
+  bounded queries, consistent 400s, generic 500s, and public dataset IDs.
+- Added DPS branding, versioned frontend requests, provenance panel, loading
+  and failure states, and cancellation/generation guards for superseded queries.
+- Added resolved runtime/test dependency locks, Python runtime pin, API/setup
+  guides, and CI for the lightweight core plus installed service/browser tests.
+- Synthetic temporary fixtures are visibly marked `test_only`; default startup
+  rejects them. Tests opt in through an explicit loader injection only.
+
+Verification: the expanded unit/API suite, installed-wheel validation, and
+Chromium smoke flow cover engine equivalence, errors/readiness, source metadata,
+pinning/following with preserved viewport, evidence inspection, filter changes,
+empty scope, stale responses, and failure feedback. These are test-only checks,
+not real-source acceptance or production performance measurements.
 
 To unblock, provide an accessible processor artifact and producing revision,
 or restore access to the downloader's existing public source. Do not retrieve
 or broaden unrelated production credentials. Then:
 
-1. Verify the local plan download is readable.
-2. Produce/obtain the canonical CSV, recording processor revision, artifact ID,
+1. Produce/obtain the canonical CSV, recording processor revision, artifact ID,
    original source URL/notices, retrieval and generation timestamps, checksum,
    observed dates, game count, patches, and leagues.
-3. Validate the consumer contract and record startup/memory/query measurements.
-4. Commit snapshot and manifest together on this feature branch.
-5. Proceed with the configured loader, FastAPI boundary, contract tests, DPS
-   frontend, and pinned deployment dependencies in the plan's dependency order.
+2. Validate the consumer contract and record startup/memory/query measurements.
+3. Commit snapshot and manifest together on this feature branch (the existing
+   `data/` ignore rule must be narrowed when adding the real release files).
+4. Run the independent implementation against the real snapshot, then complete
+   isolated QA provisioning and verification before final approval.
 
 ## QA and Render decision
 

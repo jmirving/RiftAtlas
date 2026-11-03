@@ -3,14 +3,14 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>RiftAtlas — Relationship explorer</title>
+    <title>DPS — Draft Positioning System</title>
     <link rel="stylesheet" href="/styles.css">
   </head>
   <body>
     <header class="topbar">
-      <a class="brand" href="/" aria-label="RiftAtlas home">
-        <span class="brand-mark" aria-hidden="true">RA</span>
-        <span><strong>RiftAtlas</strong><small>Relationship explorer</small></span>
+      <a class="brand" href="/" aria-label="DPS home">
+        <span class="brand-mark" aria-hidden="true">DPS</span>
+        <span><strong>DPS</strong><small>Explore how your draft connects.</small></span>
       </a>
       <form id="search-form" class="search" role="search">
         <label for="champion-search">Focus champion</label>
@@ -129,7 +129,9 @@
           </div>
         </div>
         <div class="inspector-section dataset">
-          <p class="eyebrow">Dataset context</p>
+          <p class="eyebrow">Data</p>
+          <dl id="dataset-provenance" aria-live="polite"><div><dt>Status</dt><dd>Loading dataset information…</dd></div></dl>
+          <p class="eyebrow">Current scope</p>
           <dl id="dataset-context">
             <div><dt>Status</dt><dd>Waiting for a focus champion</dd></div>
           </dl>

@@ -413,6 +413,15 @@ class ExplorerServerTests(unittest.TestCase):
         self.server.server_close()
         self.thread.join(timeout=2)
 
+    def test_versioned_frontend_routes_preserve_local_cli(self) -> None:
+        for path in ("/api/v1/champions?q=A", "/api/v1/relationships?champion=A"):
+            with urlopen(self.base_url + path, timeout=2) as response:
+                self.assertEqual(200, response.status)
+        with urlopen(self.base_url + "/api/v1/dataset", timeout=2) as response:
+            metadata = json.load(response)
+        self.assertEqual("local-unverified", metadata["dataset_id"])
+        self.assertIn("unverified", metadata["source"]["name"])
+
     def test_initial_page_and_graph_endpoint_are_served(self) -> None:
         with urlopen(self.base_url + "/", timeout=2) as response:
             page = response.read().decode()
@@ -423,7 +432,7 @@ class ExplorerServerTests(unittest.TestCase):
         with urlopen(self.base_url + "/api/graph?champion=A&limit=1", timeout=2) as response:
             payload = json.load(response)
 
-        self.assertIn("Relationship explorer", page)
+        self.assertIn("DPS — Draft Positioning System", page)
         self.assertIn("do not claim synergy", page)
         self.assertIn("Thicker edge = stronger confidence-adjusted association", page)
         self.assertIn("Darker edge = more observed co-picks", page)
