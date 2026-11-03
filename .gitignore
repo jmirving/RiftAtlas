@@ -5,6 +5,10 @@ __pycache__/
 venv/
 build/
 dist/
-data/
+data/*
+!data/drafts.csv
+!data/manifest.json
+!data/provenance.json
+!data/README.md
 .coverage
 .pytest_cache/

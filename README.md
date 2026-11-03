@@ -1,8 +1,8 @@
 # DPS — Draft Positioning System
 
 Explore how your draft connects. The standalone DPS service and versioned API
-are being prepared on a feature branch; real-snapshot verification and Render
-publication are still pending. See [API](docs/API.md),
+are being prepared on a feature branch. A validated real snapshot is bundled;
+Render QA publication and deployed acceptance are still pending. See [API](docs/API.md),
 [setup and QA](docs/DEPLOYMENT.md), and [execution status](docs/DPS_EXECUTION.md).
 The internal package and CLI remain `rift_atlas` / `rift-atlas`.
 

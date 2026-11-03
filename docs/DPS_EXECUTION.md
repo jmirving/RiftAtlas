@@ -1,132 +1,95 @@
 # DPS standalone service execution
 
-Status: independent service implementation ready for draft review; real-snapshot
-validation and deployment blocked, November 3, 2026.
+Status, November 3, 2026: implementation and real-snapshot local acceptance
+complete on `feat/dps-standalone-service`; Render QA and deployed acceptance
+remain pending. No merge, production deployment, or Render mutation occurred.
 
-## Scope and baseline
+## Scope and implementation
 
 Implementation follows `DPS-Standalone-Web-Service-Plan.md`, Library file
-`libfile_8e7ba89c2b188191bef3bdce69e2a72b`. The entire 186-line plan was read
-through Library. Its required local materialization failed with
-`library file transfer failed: download failed`; a readable local copy has not
-been verified. Follow-up authorization explicitly permits implementation from
-the complete Library read and test-only fixtures, without treating the missing
-snapshot as a blocker to independent API/frontend work.
+`libfile_8e7ba89c2b188191bef3bdce69e2a72b`. The complete plan was read locally
+for snapshot integration. This separate clone started at feature commit
+`7d342a6dcbfc5ff54a33ed05838cd3410c0a553f`, based on main
+`6a441fca999225f0e2c1af1eaddc81971156e3ec`. Existing main checkouts were unchanged.
 
-The isolated branch is `feat/dps-standalone-service`, based on current main
-`6a441fca999225f0e2c1af1eaddc81971156e3ec`. Only feature branches are authorized
-until final approval. No merge, production deployment, existing Render resource
-modification, or credential-access expansion is part of this work.
+The shared relationship engine, validated loader, FastAPI/Uvicorn boundary,
+readiness, bounded versioned API, DPS frontend, dependency locks, installed-wheel
+CI and browser smoke checks are implemented. Baseline main passed 43 tests.
+Synthetic fixtures remain isolated and rejected by the production loader.
+The recommendation CLI and existing explorer remain supported.
 
-Baseline validation on that revision:
+## Real snapshot and provenance
 
-```sh
-PYTHONPATH=src python -m unittest discover -s tests -v
-```
+The upstream download was initially blocked in the cloud environment. The user
+identified a local Oracle's Elixir export and canonical snapshot in WSL.
+To establish a producing revision, processor source was exported using
+`git archive` at `16493bdcfa4d6b4a362b8cc37e4bbb78c7bbac41`, built and tested
+in a separate workspace, then run against the checksum-verified raw export.
+All 20 processor tests passed. The regenerated CSV is byte-for-byte identical
+to the earlier November 1 snapshot; that earlier run's revision is unknown.
 
-All 43 tests passed in 3.050 seconds. These include whole-pinned-composition
-evidence, exact versus pairwise support, role constraints, missing role data,
-patch/league filters, and explicitly empty league selection. Existing explorer
-code and calculations remain unchanged.
+The committed [manifest](../data/manifest.json) and
+[provenance](../data/provenance.json) accompany the 2,616,886-byte CSV:
 
-Issues #2 and #9 remain open. Existing tests cover their described constrained
-role assignments and explorer overlays; issue reconciliation should cite those
-tests and include browser verification before claiming full acceptance.
+- Dataset: `manual-2026-11-01-rebuilt-16493bdcfa4d`.
+- SHA-256: `9f5e50854cbf2f3b87ba18ebc9e17bf2558613807dd24623ef0fe6900aa40754`.
+- 9,243 unique games; 44 leagues, 20 patches; dates January 1–November 1, 2026.
+- Generated November 3 at 18:50:53 UTC; original source download time unknown.
+- Local import was November 1 at 21:02:07 UTC; this is not asserted as download
+  time or proof of current source freshness.
+- No role mapping supplied; feasibility remains not evaluated.
 
-## Snapshot gate
+The raw export and local absolute paths are not committed. See
+[data notes](../data/README.md) for exclusion counts, source attribution,
+source-year discrepancies, and reproduction instructions.
 
-The required input is a real, attributable schema-version-1 canonical draft CSV
-produced by `jmirving/lol-pro-data-processor`. Synthetic test inputs are not a
-deployment substitute.
+## Verification and local measurements
 
-Checks completed:
+`python -m unittest discover -s tests -v` passed **60 tests in 7.412 seconds**
+against a clean installed package. Real-data checks exercise the production
+loader, readiness, provenance, assets, all three modes, one/two/four pins,
+league and patch filters, explicit empty scope, deterministic API/engine
+equivalence, and following a node while preserving pins.
+`python -m rift_atlas.dataset` passes with default data paths.
+Existing service CI automatically discovers the new real-data tests.
 
-- The processor checkout documents canonical drafts and its provenance source.
-- No real draft CSV was found in the processor, downloader, refresh-orchestrator,
-  or shared workspace paths inspected. The processor CSV under test resources
-  is a test fixture, not an acceptable production snapshot.
-- GitHub returned no published processor releases and no Actions artifacts for
-  the processor or refresh orchestrator.
-- Running the existing downloader executable for 2026 with manifests and JSON
-  output failed with `DOWNLOAD_FAILED` / `ConnectException`, including an
-  approved elevated execution attempt.
-- A request to its documented public Google Drive source returned
-  `403 Forbidden` from the execution environment's CONNECT proxy. This is an
-  access blocker, not evidence that the source dataset is empty.
+An uncontended `python scripts/measure_service.py` run used one Uvicorn worker
+on WSL, Python 3.12.3, with the installed package. This differs from the
+3.12.14 deployment pin. Full results are in
+[REAL_SNAPSHOT_MEASUREMENTS.json](REAL_SNAPSHOT_MEASUREMENTS.json).
 
-No production snapshot or provenance manifest was fabricated. Real-data load
-time, peak memory, and query timings remain unmeasured.
+| Measurement | Local result |
+| --- | --- |
+| Index load | 0.354 s |
+| Process launch to HTTP readiness | 2.306 s |
+| Peak resident memory including queries | 101.16 MiB |
+| Warm single/two/four-pin median | 45.6 / 52.6 / 110.5 ms |
+| Warm league-filter / patch-range median | 12.7 / 45.5 ms |
+| Warm empty-scope / 50-result median | 4.2 / 64.0 ms |
+| Two HTTP clients, 20 requests | 1.872 s wall time |
+| Concurrent request median / maximum | 123.6 / 293.4 ms |
 
-## Independent implementation completed
+Each warm scenario has one warmup and five measured requests. Concurrent clients
+start together and make ten sequential requests each. These measurements support
+trying free QA compute; they do not establish Render performance or deployed
+two-browser behavior. No caching or database is justified by this baseline.
 
-- Extracted the existing query calculations intact into `relationships.py`;
-  kept the legacy explorer import and CLI working.
-- Added startup validation for schema/checksum/coverage/provenance and optional
-  role mappings, with immutable per-process index initialization and no fallback.
-- Added FastAPI/Uvicorn service, readiness, three versioned read-only endpoints,
-  bounded queries, consistent 400s, generic 500s, and public dataset IDs.
-- Added DPS branding, versioned frontend requests, provenance panel, loading
-  and failure states, and cancellation/generation guards for superseded queries.
-- Added resolved runtime/test dependency locks, Python runtime pin, API/setup
-  guides, and CI for the lightweight core plus installed service/browser tests.
-- Synthetic temporary fixtures are visibly marked `test_only`; default startup
-  rejects them. Tests opt in through an explicit loader injection only.
+## Remaining QA and approval gates
 
-Verification: the expanded unit/API suite, installed-wheel validation, and
-Chromium smoke flow cover engine equivalence, errors/readiness, source metadata,
-pinning/following with preserved viewport, evidence inspection, filter changes,
-empty scope, stale responses, and failure feedback. These are test-only checks,
-not real-source acceptance or production performance measurements.
+Create only a **new** free `dps-qa` Python service in Joseph's Workspace, linked
+to `feat/dps-standalone-service`, after CI passes and shared allowances are
+checked. Existing services, env groups, credentials, disks, and databases must
+remain untouched. Use one worker, bundled data, and `/healthz`; see
+[deployment instructions](DEPLOYMENT.md) for build/start commands.
 
-To unblock, provide an accessible processor artifact and producing revision,
-or restore access to the downloader's existing public source. Do not retrieve
-or broaden unrelated production credentials. Then:
+Service previews apply to PRs targeting the service's linked branch. Use the
+branch-linked QA URL for initial review; child PRs can target this branch for
+previews. Full preview environments require Pro and are not proposed. Free
+services sleep after inactivity and share workspace instance hours, build,
+and bandwidth allowances; no always-on availability promise or paid upgrade.
 
-1. Produce/obtain the canonical CSV, recording processor revision, artifact ID,
-   original source URL/notices, retrieval and generation timestamps, checksum,
-   observed dates, game count, patches, and leagues.
-2. Validate the consumer contract and record startup/memory/query measurements.
-3. Commit snapshot and manifest together on this feature branch (the existing
-   `data/` ignore rule must be narrowed when adding the real release files).
-4. Run the independent implementation against the real snapshot, then complete
-   isolated QA provisioning and verification before final approval.
-
-## QA and Render decision
-
-Read-only inspection confirmed Joseph's Workspace is accessible and currently
-has no RiftAtlas/DPS service. No Render resources were created or changed.
-
-The initial candidate is a **new** free Python web service named `dps-qa`,
-explicitly linked to `feat/dps-standalone-service`, with one Uvicorn worker,
-bundled immutable data, `/healthz`, and deployment only after checks pass.
-Create it only after the application and real snapshot can start and the
-resource measurements support the free instance. Use no production env groups,
-credentials, databases, disks, or application dependencies. This gives a
-separate QA service without touching existing services.
-
-Render's [service previews](https://render.com/docs/service-previews) can run
-on free web services. PR previews apply to PRs **against the service's linked
-branch**: a QA service linked to this feature branch will preview child PRs
-targeting this feature branch, not automatically this branch's PR against main.
-Use the directly branch-linked QA service for the initial review. Consider
-manual service previews on the new QA service for subsequent child branches.
-
-Full [preview environments](https://render.com/docs/preview-environments)
-require a Pro workspace plan or higher. They are unnecessary for this
-single-service launch; no workspace upgrade is proposed or authorized here.
-
-[Free service limits](https://render.com/docs/free), checked November 3, 2026:
-
-- Web services sleep after 15 minutes idle; wakeup is about a minute plus app
-  initialization. No always-on availability promise.
-- The workspace shares 750 free instance hours per month. Existing free
-  services also use that allowance; exhaustion suspends free services.
-- Builds and bandwidth consume shared allowances and can incur overage charges.
-  Check available allowance/spend controls before creating the service; disclose
-  any unavoidable cost before proceeding. Do not alter existing workspace or
-  service settings to make room.
-- Runtime filesystem changes are ephemeral. Bundle the snapshot in the release;
-  no database or paid disk is necessary for the proposed architecture.
-
-QA publication, browser smoke verification, cold-start/restart checks,
-two-user measurements, and any final production approval remain pending.
+Still required: CI on the pushed revision, QA provisioning, real-data browser
+and direct API comparison, deployed cold-start/restart checks, two simultaneous
+browser users on the deployment, and final approval. Issues #2 and #9 should
+be reconciled against existing role tests and browser acceptance; no ticket
+closure is claimed here.

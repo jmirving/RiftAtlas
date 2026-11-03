@@ -1,9 +1,9 @@
 # DPS standalone service setup
 
-The service implementation is reviewable, but **deployment is blocked pending a
-real processor-produced snapshot**. There is no bundled production data yet.
-Never deploy the synthetic test fixtures. No Render resource has been created
-or modified for this work. See [DPS_EXECUTION.md](DPS_EXECUTION.md).
+A validated real processor-produced snapshot is bundled in `data/`; see
+[data provenance](../data/README.md). Local real-data acceptance has passed.
+Render QA provisioning and deployed acceptance remain pending; no Render
+resource was created or modified. See [DPS_EXECUTION.md](DPS_EXECUTION.md).
 
 ## Install and run
 
@@ -15,8 +15,8 @@ the service uses the optional `web` extra. Resolved runtime dependencies are in
 python -m venv .venv
 .venv/bin/python -m pip install -r requirements-web.lock
 .venv/bin/python -m pip install --no-deps .
-export DPS_DRAFTS_PATH=/absolute/path/to/drafts.csv
-export DPS_MANIFEST_PATH=/absolute/path/to/manifest.json
+# Defaults use the bundled data/drafts.csv and data/manifest.json.
+# Override DPS_DRAFTS_PATH and DPS_MANIFEST_PATH only for another validated release.
 # Optional only when a validated mapping and matching manifest provenance exist:
 # export DPS_ROLES_PATH=/absolute/path/to/roles.json
 .venv/bin/python -m rift_atlas.dataset
@@ -67,8 +67,16 @@ For an already installed Chromium, set `DPS_BROWSER_EXECUTABLE` to its path.
 The browser test starts a localhost-only service with an explicit test loader,
 temporary synthetic CSV, and a conspicuous test-only provenance panel. It does
 not provide a production environment flag to bypass the fixture prohibition.
-Boundary tests do not substitute for the still-required real-snapshot contract,
-startup/memory, concurrent-user, deployed cold-start, and restart measurements.
+The suite also validates the bundled real snapshot and compares API responses
+with direct engine results across all modes and representative populations.
+Run `python scripts/measure_service.py` on Linux/WSL for installed-service HTTP
+measurements. The recorded [local baseline](REAL_SNAPSHOT_MEASUREMENTS.json)
+used Python 3.12.3, not the pinned Render patch (3.12.14): 0.354 s index load,
+2.306 s process-to-readiness, and 101.16 MiB peak RSS. Seven warm-query medians
+range from 4.2 to 110.5 ms. Two concurrent HTTP clients completed 20 requests
+in 1.872 s (123.6 ms median, 293.4 ms maximum). These are local measurements,
+not a Render capacity guarantee or two-browser acceptance. Deployed cold-start,
+restart, and simultaneous browser-user checks remain required.
 
 ## Future QA provisioning
 
