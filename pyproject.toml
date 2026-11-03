@@ -13,6 +13,10 @@ authors = [
 ]
 dependencies = []
 
+[project.optional-dependencies]
+web = ["fastapi==0.141.1", "uvicorn==0.52.1"]
+test = ["httpx==0.28.1"]
+
 [project.scripts]
 rift-atlas = "rift_atlas.cli:main"
 

@@ -1,0 +1,61 @@
+{
+  "measured_at": "2026-11-03T19:01:01.100639+00:00",
+  "environment": {
+    "platform": "Linux-6.6.87.2-microsoft-standard-WSL2-x86_64-with-glibc2.39",
+    "python": "3.12.3",
+    "cpu_count": 16,
+    "workers": 1,
+    "installed_package": true,
+    "deployment": "local WSL; not Render"
+  },
+  "dataset_id": "manual-2026-11-01-rebuilt-16493bdcfa4d",
+  "csv_sha256": "9f5e50854cbf2f3b87ba18ebc9e17bf2558613807dd24623ef0fe6900aa40754",
+  "startup_to_http_ready_seconds": 2.305973760998313,
+  "startup_log": "INFO:     DPS ready revision=local dataset=manual-2026-11-01-rebuilt-16493bdcfa4d games=9243 load_seconds=0.354",
+  "server_peak_rss_mib": 101.15625,
+  "process_peak_rss_mib": 101.15625,
+  "warm_http_queries": {
+    "single_pin": {
+      "samples": 5,
+      "median_seconds": 0.04556452600081684,
+      "max_seconds": 0.04909940999641549
+    },
+    "two_pins": {
+      "samples": 5,
+      "median_seconds": 0.05255956399923889,
+      "max_seconds": 0.054748826998547884
+    },
+    "four_pins": {
+      "samples": 5,
+      "median_seconds": 0.11052487499910058,
+      "max_seconds": 0.1488545680003881
+    },
+    "top_leagues": {
+      "samples": 5,
+      "median_seconds": 0.012723061001452152,
+      "max_seconds": 0.012952097000379581
+    },
+    "recent_patches": {
+      "samples": 5,
+      "median_seconds": 0.04547651800021413,
+      "max_seconds": 0.05368274099964765
+    },
+    "empty_leagues": {
+      "samples": 5,
+      "median_seconds": 0.004202895997877931,
+      "max_seconds": 0.004788715999893611
+    },
+    "maximum_results": {
+      "samples": 5,
+      "median_seconds": 0.06395745700137923,
+      "max_seconds": 0.10700501399696805
+    }
+  },
+  "two_concurrent_http_clients": {
+    "requests": 20,
+    "wall_seconds": 1.872209788998589,
+    "median_seconds": 0.12361673249870364,
+    "max_seconds": 0.2933805280008528
+  },
+  "limitations": "Local HTTP baseline only; deployment cold start, restart, and simultaneous browser users remain to be measured on Render."
+}

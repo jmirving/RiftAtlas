@@ -193,23 +193,26 @@ function populateLeagueOptions(dataset) {
   updateTopRegionsState();
 }
 
-async function fetchJson(url) {
-  const response = await fetch(url);
+async function fetchJson(url, options = {}) {
+  const response = await fetch(url, options);
   const payload = await response.json();
   if (!response.ok) throw new Error(payload.error || "Request failed");
   return payload;
 }
 
+let searchGeneration = 0;
 async function updateSearchOptions() {
+  const generation = ++searchGeneration;
   try {
-    const data = await fetchJson(`/api/champions?q=${encodeURIComponent(searchInput.value)}&limit=20`);
+    const data = await fetchJson(`/api/v1/champions?q=${encodeURIComponent(searchInput.value)}&limit=20`);
+    if (generation !== searchGeneration) return;
     searchOptions.replaceChildren(...data.champions.map((champion) => {
       const option = document.createElement("option");
       option.value = champion;
       return option;
     }));
   } catch (error) {
-    searchStatus.textContent = error.message;
+    if (generation === searchGeneration) searchStatus.textContent = error.message;
   }
 }
 
@@ -350,8 +353,8 @@ function showCandidateEvidence(candidate, pinnedCount) {
       ${metric("Candidate support", `${candidate.candidate_support} team drafts`)}
       ${subsets}
     </dl>
-    <div class="context-list"><strong>Exact-joint patches</strong><span>${candidate.exact_joint_patches.join(", ") || "None observed"}</span></div>
-    <div class="context-list"><strong>Exact-joint leagues</strong><span>${candidate.exact_joint_leagues.join(", ") || "None observed"}</span></div>
+    <div class="context-list"><strong>Exact-joint patches</strong><span>${escapeText(candidate.exact_joint_patches.join(", ") || "None observed")}</span></div>
+    <div class="context-list"><strong>Exact-joint leagues</strong><span>${escapeText(candidate.exact_joint_leagues.join(", ") || "None observed")}</span></div>
     ${distribution("Any-pair observations by patch", candidate.patch_distribution, "patch")}
     ${distribution("Exact-joint observations by patch", candidate.exact_joint_patch_distribution, "patch")}`;
   evidenceActions([
@@ -373,7 +376,7 @@ function showRoleSummary(data) {
   if (!configured) {
     roleSummaryPanel.innerHTML = `
       <h2>Not evaluated</h2>
-      <p>Role data is not configured. RiftAtlas does not infer roles from draft pick order.</p>`;
+      <p>Role data is not configured. DPS does not infer roles from draft pick order.</p>`;
     return;
   }
   const feasibility = data.pinned_role_feasibility;
@@ -616,8 +619,14 @@ function renderGraph(data) {
   }
 }
 
+let graphGeneration = 0;
+let graphRequest;
 async function loadGraph(champion, { resetViewForNewFocus = false } = {}) {
-  searchStatus.textContent = "";
+  const generation = ++graphGeneration;
+  graphRequest?.abort();
+  graphRequest = new AbortController();
+  searchStatus.textContent = "Loading relationships…";
+  graph.setAttribute("aria-busy", "true");
   try {
     const query = new URLSearchParams({
       champion,
@@ -634,14 +643,19 @@ async function loadGraph(champion, { resetViewForNewFocus = false } = {}) {
       leagues.forEach((league) => query.append("league", league));
     }
     if (hideRoleInfeasibleInput.checked) query.set("hide_role_infeasible", "true");
-    const data = await fetchJson(`/api/graph?${query}`);
+    const data = await fetchJson(`/api/v1/relationships?${query}`, { signal: graphRequest.signal });
+    if (generation !== graphGeneration) return;
+    searchStatus.textContent = "";
     if (resetViewForNewFocus && data.focal.champion !== focusChampion) resetViewport();
     focusChampion = data.focal.champion;
     searchInput.value = focusChampion;
     refreshPinnedChampions();
     renderGraph(data);
   } catch (error) {
-    searchStatus.textContent = error.message;
+    if (generation !== graphGeneration || error.name === "AbortError") return;
+    searchStatus.textContent = `Could not load relationships: ${error.message}. The graph still shows the last successful query.`;
+  } finally {
+    if (generation === graphGeneration) graph.setAttribute("aria-busy", "false");
   }
 }
 
@@ -771,3 +785,33 @@ graph.addEventListener("click", (event) => {
 }, true);
 updateSearchOptions();
 refreshPinnedChampions();
+
+async function loadDatasetMetadata() {
+  const panel = document.querySelector("#dataset-provenance");
+  try {
+    const data = await fetchJson("/api/v1/dataset");
+    panel.innerHTML = [
+      metric("Dataset", data.dataset_id),
+      metric("Source", data.source.name),
+      metric("Generated", data.generated_at || "Unknown"),
+      metric("Source retrieved", data.source_retrieved_at || "Unknown"),
+      metric("Observed matches", data.coverage.match_date_from ? `${data.coverage.match_date_from} – ${data.coverage.match_date_to}` : "Unknown"),
+      metric("Patch coverage", data.coverage.patches.join(", ")),
+      metric("League coverage", data.coverage.leagues.join(", ")),
+      metric("Attribution", data.attribution),
+      metric("Source notices", data.source_notices || "Not supplied"),
+      metric("Roles", data.role_status),
+      ...(data.test_only ? [metric("Warning", "Synthetic test-only data — not a production snapshot")] : []),
+    ].join("");
+    if (data.source.url && data.source.url.startsWith("https://")) {
+      const link = document.createElement("a");
+      link.href = data.source.url;
+      link.textContent = "Original source";
+      link.rel = "noopener noreferrer";
+      panel.append(link);
+    }
+  } catch (error) {
+    panel.textContent = `Dataset information unavailable: ${error.message}`;
+  }
+}
+loadDatasetMetadata();

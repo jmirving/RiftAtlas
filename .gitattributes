@@ -1,0 +1,2 @@
+# The manifest hashes the processor's exact bytes, including CSV line endings.
+data/drafts.csv -text whitespace=cr-at-eol
