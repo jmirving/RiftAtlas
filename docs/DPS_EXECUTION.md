@@ -1,0 +1,109 @@
+# DPS standalone service execution
+
+Status: blocked at the real-snapshot gate, November 3, 2026.
+
+## Scope and baseline
+
+Implementation follows `DPS-Standalone-Web-Service-Plan.md`, Library file
+`libfile_8e7ba89c2b188191bef3bdce69e2a72b`. The entire 186-line plan was read
+through Library. Its required local materialization failed with
+`library file transfer failed: download failed`; a readable local copy has not
+been verified. Restore that transfer before implementation resumes.
+
+The isolated branch is `feat/dps-standalone-service`, based on current main
+`6a441fca999225f0e2c1af1eaddc81971156e3ec`. Only feature branches are authorized
+until final approval. No merge, production deployment, existing Render resource
+modification, or credential-access expansion is part of this work.
+
+Baseline validation on that revision:
+
+```sh
+PYTHONPATH=src python -m unittest discover -s tests -v
+```
+
+All 43 tests passed in 3.050 seconds. These include whole-pinned-composition
+evidence, exact versus pairwise support, role constraints, missing role data,
+patch/league filters, and explicitly empty league selection. Existing explorer
+code and calculations remain unchanged.
+
+Issues #2 and #9 remain open. Existing tests cover their described constrained
+role assignments and explorer overlays; issue reconciliation should cite those
+tests and include browser verification before claiming full acceptance.
+
+## Snapshot gate
+
+The required input is a real, attributable schema-version-1 canonical draft CSV
+produced by `jmirving/lol-pro-data-processor`. Synthetic test inputs are not a
+deployment substitute.
+
+Checks completed:
+
+- The processor checkout documents canonical drafts and its provenance source.
+- No real draft CSV was found in the processor, downloader, refresh-orchestrator,
+  or shared workspace paths inspected. The processor CSV under test resources
+  is a test fixture, not an acceptable production snapshot.
+- GitHub returned no published processor releases and no Actions artifacts for
+  the processor or refresh orchestrator.
+- Running the existing downloader executable for 2026 with manifests and JSON
+  output failed with `DOWNLOAD_FAILED` / `ConnectException`, including an
+  approved elevated execution attempt.
+- A request to its documented public Google Drive source returned
+  `403 Forbidden` from the execution environment's CONNECT proxy. This is an
+  access blocker, not evidence that the source dataset is empty.
+
+No snapshot or provenance manifest was fabricated. Real-data load time, peak
+memory, and query timings remain unmeasured. No API, frontend, or deployment
+implementation has been represented as complete.
+
+To unblock, provide an accessible processor artifact and producing revision,
+or restore access to the downloader's existing public source. Do not retrieve
+or broaden unrelated production credentials. Then:
+
+1. Verify the local plan download is readable.
+2. Produce/obtain the canonical CSV, recording processor revision, artifact ID,
+   original source URL/notices, retrieval and generation timestamps, checksum,
+   observed dates, game count, patches, and leagues.
+3. Validate the consumer contract and record startup/memory/query measurements.
+4. Commit snapshot and manifest together on this feature branch.
+5. Proceed with the configured loader, FastAPI boundary, contract tests, DPS
+   frontend, and pinned deployment dependencies in the plan's dependency order.
+
+## QA and Render decision
+
+Read-only inspection confirmed Joseph's Workspace is accessible and currently
+has no RiftAtlas/DPS service. No Render resources were created or changed.
+
+The initial candidate is a **new** free Python web service named `dps-qa`,
+explicitly linked to `feat/dps-standalone-service`, with one Uvicorn worker,
+bundled immutable data, `/healthz`, and deployment only after checks pass.
+Create it only after the application and real snapshot can start and the
+resource measurements support the free instance. Use no production env groups,
+credentials, databases, disks, or application dependencies. This gives a
+separate QA service without touching existing services.
+
+Render's [service previews](https://render.com/docs/service-previews) can run
+on free web services. PR previews apply to PRs **against the service's linked
+branch**: a QA service linked to this feature branch will preview child PRs
+targeting this feature branch, not automatically this branch's PR against main.
+Use the directly branch-linked QA service for the initial review. Consider
+manual service previews on the new QA service for subsequent child branches.
+
+Full [preview environments](https://render.com/docs/preview-environments)
+require a Pro workspace plan or higher. They are unnecessary for this
+single-service launch; no workspace upgrade is proposed or authorized here.
+
+[Free service limits](https://render.com/docs/free), checked November 3, 2026:
+
+- Web services sleep after 15 minutes idle; wakeup is about a minute plus app
+  initialization. No always-on availability promise.
+- The workspace shares 750 free instance hours per month. Existing free
+  services also use that allowance; exhaustion suspends free services.
+- Builds and bandwidth consume shared allowances and can incur overage charges.
+  Check available allowance/spend controls before creating the service; disclose
+  any unavoidable cost before proceeding. Do not alter existing workspace or
+  service settings to make room.
+- Runtime filesystem changes are ephemeral. Bundle the snapshot in the release;
+  no database or paid disk is necessary for the proposed architecture.
+
+QA publication, browser smoke verification, cold-start/restart checks,
+two-user measurements, and any final production approval remain pending.
